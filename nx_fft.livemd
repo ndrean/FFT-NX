@@ -129,6 +129,8 @@ defmodule Signal do
     Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling/ fs)
   end
 
+  # we want to apply Ncx.sq_norm to each element of the tensor so we vectorize it
+  # we do not need the norm (square root but only the square of the norm
   defn amplitudes(t) do
     Nx.vectorize(t, :x) |> Ncx.sq_norm()
   end
