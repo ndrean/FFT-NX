@@ -179,4 +179,7 @@ VegaLite.new(width: 600, height: 300)
 |> VegaLite.encode_field(:y, "y", type: :quantitative)
 ```
 
+![image](https://github.com/user-attachments/assets/6dc625c1-718c-462f-90fb-976eee0d5a16)
+
+
 We see a peak at 5Hz and one at 15Hz with amplitude about 4 times less. Since we took the square of the norm (to speed up computations), this means the amplitutde is half. This is indeed our incomming signa!! 🎉
