@@ -129,7 +129,7 @@ defmodule Signal do
     Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling/ fs)
   end
 
-  def amplitudes(t) do
+  defn amplitudes(t) do
     Nx.vectorize(t, :x) |> Ncx.sq_norm()
   end
 end
