@@ -99,7 +99,7 @@ $\sin(2\pi*5*t) + \frac12 \sin(2\pi*15*t)$
 We can do something like this "by hand":
 
 ```elixir
-fs = 50
+fs = 64
 sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:c, 64})
 pi = Nx.Constants.pi()
 
@@ -112,7 +112,7 @@ _samplng =
 
 > It is easier to perform calculations in a defined numerical function with `defn` like below, so we adopt it. Morevoer, the code will be compiled by the backend, thus more efficient.
 
-We build a linear space of 50 equally spaced points with `Nx.linspace`. For each value $t$, we will calculate the signal at $t$. This will give us the sampling.
+We build a linear space of 50 equally spaced points with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in our "Signal" module. This will give us the sampling.
 
 ```elixir
 defmodule Signal do
@@ -137,12 +137,12 @@ defmodule Signal do
 end
 ```
 
-We obtain 50 samples per second in the list  below
+We obtain 64 samples per second in the list  below
 
 > Note they are all real values
 
 ```elixir
-fs = 50
+fs = 2**6
 samples = Signal.sample(fs: fs)
 ```
 
@@ -156,9 +156,9 @@ This gives us the following information:
 
 > The Fourrier coefficient as the position $i$ of this list gives the information of the amplitude (the norm of this coefficient) of the sampled signal at the frequency $i$.
 
-Our frequency resolution  - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, thus up to 25Hz.
+Our frequency resolution  - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, thus up to 32Hz.
 
-We will therefor limit the display to 25Hz, which are the 25 first points returned by the FFT.
+We will therefor limit the display to 32Hz, which are the 32 first points returned by the FFT.
 
 ```elixir
 f_max = div(fs, 2)
