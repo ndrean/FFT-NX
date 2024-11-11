@@ -84,7 +84,7 @@ t_one = Nx.divide(pi, 4) |> Nx.dot(i) |> Nx.exp() |> Nx.dot(sqrt_2)
 
 Suppose we have a signal and we can sample it at 50Hz, meaning accepting 50 signals per second.
 
-We wnat ot discover this signal. We will run a Fast Fourrier Taansform
+We want to discover this signal. We will run a Fast Fourrier Taansform
 
 <https://en.wikipedia.org/wiki/Discrete_Fourier_transform>
 
@@ -92,7 +92,7 @@ We wnat ot discover this signal. We will run a Fast Fourrier Taansform
 
 Lets build a signal that we want to discover!
 
-It is composed of the sum of two sinusoid signals, one at 5Hz and the second at 15Hz with amplitudes (1, 0.5).
+It is composed of two sinusoidal signals, one at 5Hz and the second at 15Hz with amplitudes (1, 0.5).
 
 $\sin(2\pi*5*t) + \frac12 \sin(2\pi*15*t)$
 
