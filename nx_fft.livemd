@@ -130,7 +130,7 @@ defmodule Signal do
   end
 
   def amplitudes(t) do
-    Nx.to_list(t) |> Enum.map(&Complex.abs/1)
+    Nx.vectorize(t, :x) |> Ncx.sq_norm()
   end
 end
 ```
@@ -160,7 +160,13 @@ We will therefor limit the display to 25Hz, which are the 25 first points return
 
 ```elixir
 f_max = div(fs, 2)
-data1 = %{x: (for i<- 0..f_max, do: i), y: Signal.amplitudes(dft) |> Enum.take(f_max) }
+
+amplitudes =  Signal.amplitudes(dft)
+
+data1 = %{
+  x: (for i<- 0..f_max, do: i), 
+  y: Nx.to_list(amplitudes) |> Enum.take(f_max)
+}
 ```
 
 <!-- livebook:{"attrs":"eyJjaGFydF90aXRsZSI6bnVsbCwiaGVpZ2h0IjozMDAsImxheWVycyI6W3siYWN0aXZlIjp0cnVlLCJjaGFydF90eXBlIjoicG9pbnQiLCJjb2xvcl9maWVsZCI6bnVsbCwiY29sb3JfZmllbGRfYWdncmVnYXRlIjpudWxsLCJjb2xvcl9maWVsZF9iaW4iOm51bGwsImNvbG9yX2ZpZWxkX3NjYWxlX3NjaGVtZSI6bnVsbCwiY29sb3JfZmllbGRfdHlwZSI6bnVsbCwiZGF0YV92YXJpYWJsZSI6ImRhdGExIiwiZ2VvZGF0YV9jb2xvciI6ImJsdWUiLCJsYXRpdHVkZV9maWVsZCI6bnVsbCwibG9uZ2l0dWRlX2ZpZWxkIjpudWxsLCJ4X2ZpZWxkIjoieCIsInhfZmllbGRfYWdncmVnYXRlIjpudWxsLCJ4X2ZpZWxkX2JpbiI6bnVsbCwieF9maWVsZF9zY2FsZV90eXBlIjpudWxsLCJ4X2ZpZWxkX3R5cGUiOiJxdWFudGl0YXRpdmUiLCJ5X2ZpZWxkIjoieSIsInlfZmllbGRfYWdncmVnYXRlIjpudWxsLCJ5X2ZpZWxkX2JpbiI6bnVsbCwieV9maWVsZF9zY2FsZV90eXBlIjpudWxsLCJ5X2ZpZWxkX3R5cGUiOiJxdWFudGl0YXRpdmUifV0sInZsX2FsaWFzIjoiRWxpeGlyLlZlZ2FMaXRlIiwid2lkdGgiOjYwMH0","chunks":null,"kind":"Elixir.KinoVegaLite.ChartCell","livebook_object":"smart_cell"} -->
