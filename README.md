@@ -33,18 +33,10 @@ end
 
 Take the complex number $1+i$.
 
-`Nx` brings in the library `Complex`.
-
-We define a complex number by `Complex.new/1`
+Since `Nx` brings in the library `Complex`, we define a complex number by `Complex.new/1`:
 
 ```elixir
 one = Complex.new(1,1)
-```
-
-We can tensor it:
-
-```elixir
-Nx.tensor(one)
 ```
 
 Its norm is $ \sqrt{2}$, and angle is $\pi/4$.
@@ -53,9 +45,7 @@ Its polar form is:
 
 $ \sqrt{2}\big(\cos(\pi/4) + i\sin(\pi/4)\big) = \sqrt{2} \exp^{i \pi/4}$.
 
-It can be writen with the Euler-Moivre formulas:
-
-We can use `Complex.from_polar/2` and tensor it, or build it directly as a tensor using `Nx.dot` and `Nx.exp`.
+We can use `Complex.from_polar/2`:
 
 ```elixir
 sqrt_2 = :math.sqrt(2)
@@ -74,17 +64,14 @@ cx_one = Complex.from_polar(sqrt_2, a)
 We can also use `Nx` to build the Euler-De Moivre formula:
 
 ```elixir
-i = Nx.Constants.i()
-pi = Nx.Constants.pi()
-
-t_one = Nx.divide(pi, 4) |> Nx.dot(i) |> Nx.exp() |> Nx.dot(sqrt_2)
+t_one = Nx.complex(Nx.tensor(1), Nx.tensor(1))
 ```
 
 ## Example of DFT
 
 Suppose we have a signal and we can sample it at 50Hz, meaning accepting 50 signals per second.
 
-We want to discover this signal. We will run a Fast Fourrier Taansform
+We wnat ot discover this signal. We will run a Fast Fourrier Taansform
 
 <https://en.wikipedia.org/wiki/Discrete_Fourier_transform>
 
@@ -92,27 +79,27 @@ We want to discover this signal. We will run a Fast Fourrier Taansform
 
 Lets build a signal that we want to discover!
 
-It is composed of two sinusoidal signals, one at 5Hz and the second at 15Hz with amplitudes (1, 0.5).
+It is composed of the sum of two sinusoid signals, one at 5Hz and the second at 15Hz with amplitudes (1, 0.5).
 
-$\sin(2\pi*5*t) + \frac12 \sin(2\pi*15*t)$
+$\sin(2\pi*5*t / f_s) + \frac12 \sin(2\pi*15*t/f_s)$
 
 We can do something like this "by hand":
 
 ```elixir
-fs = 50
-sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:c, 64})
+fs = 64
+sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:u, 64})
 pi = Nx.Constants.pi()
 
-_samplng =
+_sampling =
   Nx.add(
-    Nx.sin(Nx.dot(2, pi)|> Nx.dot(5) |> Nx.dot(sampling)),
-    Nx.sin(Nx.dot(2, pi)|> Nx.dot(15) |> Nx.dot(sampling)) |> Nx.dot(0.5)
+    Nx.sin(Nx.dot(2, pi)|> Nx.dot(5) |> Nx.dot(sampling) |> Nx.divide(fs)),
+    Nx.sin(Nx.dot(2, pi)|> Nx.dot(15) |> Nx.dot(sampling) |> Nx.divide(fs)) |> Nx.dot(0.5)
   )
 ```
 
 > It is easier to perform calculations in a defined numerical function with `defn` like below, so we adopt it. Morevoer, the code will be compiled by the backend, thus more efficient.
 
-We build a linear space of 50 equally spaced points with `Nx.linspace`. For each value $t$, we will calculate the signal at $t$. This will give us the sampling.
+We build a linear space of 50 equally spaced points with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in our "Signal" module. This will give us the sampling.
 
 ```elixir
 defmodule Signal do
@@ -123,10 +110,10 @@ defmodule Signal do
 
   defn sample(opts) do
     fs = opts[:fs]
-    sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:s, 64})
+    sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:u, 64})
     f1 = 5
     f2 = 15
-    Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling/ fs)
+    Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling / fs)
   end
 
   # we want to apply Ncx.sq_norm to each element of the tensor so we vectorize it
@@ -137,12 +124,12 @@ defmodule Signal do
 end
 ```
 
-We obtain 50 samples per second in the list below
+We obtain 64 samples per second in the list below
 
 > Note they are all real values
 
 ```elixir
-fs = 50
+fs = 2**6
 samples = Signal.sample(fs: fs)
 ```
 
@@ -156,9 +143,9 @@ This gives us the following information:
 
 > The Fourrier coefficient as the position $i$ of this list gives the information of the amplitude (the norm of this coefficient) of the sampled signal at the frequency $i$.
 
-Our frequency resolution - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, thus up to 25Hz.
+Our frequency resolution - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, thus up to 32Hz.
 
-We will therefor limit the display to 25Hz, which are the 25 first points returned by the FFT.
+We will therefor limit the display to 32Hz, which are the 32 first points returned by the FFT.
 
 ```elixir
 f_max = div(fs, 2)
@@ -180,6 +167,5 @@ VegaLite.new(width: 600, height: 300)
 ```
 
 ![image](https://github.com/user-attachments/assets/6dc625c1-718c-462f-90fb-976eee0d5a16)
-
 
 We see a peak at 5Hz and one at 15Hz with amplitude about 4 times less. Since we took the square of the norm (to speed up computations), this means the amplitutde is half. This is indeed our incomming signa!! 🎉
