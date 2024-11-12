@@ -69,11 +69,11 @@ We will run a Fast Fourrier Taansform. It transforms a time-domain function into
 
 Lets build a signal that we want to discover!
 
-It will be the sum of two sinusoid signals, one at 5Hz and the second at 15Hz with amplitudes (1, 0.5).
+It will be the sum of three sinusoid signals, one at 5Hz, one at 15Hz and a last one at 20Hz with the corresponding amplitudes (1, 0.5, 0.25).
 
-$\sin(2\pi*5*t / f_s) + \frac12 \sin(2\pi*15*t/f_s)$
+$\sin(2\pi*5*t / f_s) + \frac12 \sin(2\pi*15*t/f_s) + \frac14 \sin(2\pi*20*t/f_S)$
 
-Suppose our sampling rate is 64 Hz (meaning 64 samples per second). We build a linear space of 64 equally spaced points with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in our "Signal" module. This will give us the sampling.
+Suppose our sampling rate is `fs` Hz (meaning `fs` samples per second). We build a linear space of 64 equally spaced points with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in our "Signal" module. This will give us the sampling.
 
 ```elixir
 defmodule Signal do
@@ -87,7 +87,8 @@ defmodule Signal do
     sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:u, 64})
     f1 = 5
     f2 = 15
-    Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling / fs)
+    f3 = 20
+    Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling / fs) + 1/4 * Nx.sin(2 * pi() * f3 * sampling / fs)
   end
 
   defn amplitudes(t) do
@@ -96,12 +97,12 @@ defmodule Signal do
 end
 ```
 
-We obtain 64 samples per second in the list  below
+Lets sample at 256 Hz. We obtain `fs` samples per second in the list  below
 
 > Note they are all real values
 
 ```elixir
-fs = 2**6
+fs = 2**10
 samples = Signal.sample(fs: fs)
 ```
 
@@ -111,22 +112,25 @@ We transform this time-serie of equally spaced values by `Nx.fft` and obtain a l
 dft = Nx.fft(samples)
 ```
 
-This gives us the following information:
+The DFT __approximates the original signal__. It gives us the following information:
 
-> The Fourrier coefficient as the position $i$ of this list gives the information of the amplitude (the norm of this coefficient) of the sampled signal at the frequency $i$.
+> The Fourrier coefficient as the position $i$ of this list gives recovered information of the amplitude (the norm of this coefficient) and the phase of the sampled signal at the frequency $i$ corresponding to the index.
 
-Our frequency resolution  - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, thus up to 30Hz.
+Our frequency resolution  - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, `fs/2`Hz.
 
-We will therefor limit the display to 32Hz, which are the 32 first points returned by the FFT.
+We will therefor limit our study points to the indeices below this threshold value by slicing the tensor.
 
 ```elixir
 f_max = div(fs, 2)
+amplitudes =  Signal.amplitudes(dft) |> Nx.slice([0], [f_max])
 
-amplitudes =  Signal.amplitudes(dft)
+
+f_draw = 100
+
 
 data1 = %{
-  x: 0..f_max,
-  y: Nx.to_list(amplitudes) |> Enum.take(f_max)
+  x: 0..f_draw,
+  y: Nx.to_list(amplitudes) |> Enum.take(f_draw)
 }
 ```
 
@@ -140,4 +144,12 @@ VegaLite.new(width: 600, height: 300)
 |> VegaLite.encode_field(:y, "y", type: :quantitative)
 ```
 
-We see a peak at 5Hz and one at 15Hz with amplitude about 2 times less. This is indeed our incomming signa!! 🎉
+We see the peaks at 5Hz, 15Hz and 20Hz with their amplitudes.
+
+This is indeed our incomming signa!! 🎉
+
+We can peek into our data:
+
+```elixir
+{v, idx} = Nx.top_k(amplitudes, k: 3)
+```
