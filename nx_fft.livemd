@@ -1,12 +1,15 @@
 # Discrete Fourrier Transform with Nx
 
 ```elixir
-Mix.install([
-  {:nx, "~> 0.9.1"},
-  {:kino, "~> 0.14.2"},
-  {:kino_vega_lite, "~> 0.1.11"},
-  {:exla, "~> 0.9.1"}
-], config: [nx: [default_backend: EXLA.Backend]]
+Mix.install(
+  [
+    {:nx, "~> 0.9.1"},
+    {:kino, "~> 0.14.2"},
+    {:kino_vega_lite, "~> 0.1.11"},
+    {:exla, "~> 0.9.1"},
+    {:nx_signal, "~> 0.2.0"}
+  ],
+  config: [nx: [default_backend: EXLA.Backend]]
 )
 
 Nx.Defn.global_default_options(compiler: EXLA, client: :host)
@@ -49,6 +52,18 @@ and compute its norm:
 Nx.abs(t_one)
 ```
 
+It is "tensor" aware function.
+
+```elixir
+t = Nx.stack([
+  t_one, 
+  Nx.complex(Nx.tensor(1), Nx.tensor(0)), 
+  Nx.complex(Nx.tensor(0), Nx.tensor(1))
+])
+
+Nx.abs(t)
+```
+
 We also have:
 
 ```elixir
@@ -61,7 +76,7 @@ Nx.add(1 , i)
 
 Suppose we have a periodic signal that we sample in order to understand it.
 
-We will run a Fast Fourrier Taansform. It transforms a time-domain function into the frequency domain.
+We will run a Fast Fourrier Transform. It transforms a time-domain function into the frequency domain.
 
 <https://en.wikipedia.org/wiki/Discrete_Fourier_transform>
 
@@ -69,87 +84,101 @@ We will run a Fast Fourrier Taansform. It transforms a time-domain function into
 
 Lets build a signal that we want to discover!
 
-It will be the sum of three sinusoid signals, one at 5Hz, one at 15Hz and a last one at 20Hz with the corresponding amplitudes (1, 0.5, 0.25).
+It will be the sum of three sinusoidal signals, one at 5Hz, one at 15Hz and a last one at 20Hz with the corresponding amplitudes (1, 0.5, 0.25).
 
-$\sin(2\pi*5*t / f_s) + \frac12 \sin(2\pi*15*t/f_s) + \frac14 \sin(2\pi*20*t/f_S)$
+$\sin(2\pi*5*t) + \frac12 \sin(2\pi*15*t) + \frac14 \sin(2\pi*20*t)$
 
-Suppose our sampling rate is `fs` Hz (meaning `fs` samples per second). We build a linear space of 64 equally spaced points with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in our "Signal" module. This will give us the sampling.
+Suppose we have a sampling rate of `fs=50Hz` (meaning 50 samples per second) and our aquisition time is `duration = 1s`.
+We build a time series with a linear space of `fs`  equally spaced points with the given `duration` with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in the module below. This will give us the sampling.
 
 ```elixir
 defmodule Signal do
   import Nx.Defn
-
-  defn pi(), do: Nx.Constants.pi()
-
+  import Nx.Constants, only: [pi: 0]
 
   defn sample(opts) do
     fs = opts[:fs]
-    sampling = Nx.linspace(0, fs, n: fs, endpoint: false, type: {:u, 64})
-    f1 = 5
-    f2 = 15
-    f3 = 20
-    Nx.sin(2 * pi() * f1 * sampling / fs) + 1/2 * Nx.sin(2 * pi() * f2 * sampling / fs) + 1/4 * Nx.sin(2 * pi() * f3 * sampling / fs)
-  end
-
-  defn amplitudes(t) do
-    Nx.abs(t)
+    duration = opts[:duration]
+    sampling = Nx.linspace(0, duration, n: fs, endpoint: false, type: {:f, 32})
+    
+    f1 = 5; f2 = 15; f3 = 20
+    Nx.sin(2 * pi() * f1 * sampling ) + 1/2 * Nx.sin(2 * pi() * f2 * sampling) + 1/4 * Nx.sin(2 * pi() * f3 * sampling )
   end
 end
 ```
 
-Lets sample at 256 Hz. We obtain `fs` samples per second in the list  below
-
-> Note they are all real values
+We sample our signal at fs=50Hz during 1s:
 
 ```elixir
-fs = 2**10
-samples = Signal.sample(fs: fs)
+fs = 50; duration= 1
+
+samples = Signal.sample(fs: fs, duration: 1)
 ```
 
-We transform this time-serie of equally spaced values by `Nx.fft` and obtain a list of Fourrier coeficients: they are complex values indexed by the frequency.
+The DFT algorithm takes our sampling (a time-series) and __approximates the original signal__.
+
+It gives us the following information:
+
+> The Fourrier coefficient as the position $i$ of the DFT results list gives the recovered information of the amplitude (the norm of this coefficient) and the phase of the sampled signal at the frequency $i$ corresponding to the index.
+
+The `Nx.fft` function takes our sampling and returns a list of Fourrier coeficients: they are complex values indexed by the frequency.
 
 ```elixir
 dft = Nx.fft(samples)
 ```
 
-The DFT __approximates the original signal__. It gives us the following information:
+Our frequency resolution  - the accuracy of the DFT algorithm - is limited by the Nyquist frequency, which is half the sampling rate, `fs/2`Hz.
 
-> The Fourrier coefficient as the position $i$ of this list gives recovered information of the amplitude (the norm of this coefficient) and the phase of the sampled signal at the frequency $i$ corresponding to the index.
+[Nyquist](https://en.wikipedia.org/wiki/Nyquist_frequency)
 
-Our frequency resolution  - the accuracy - is limited by the Nyquist frequency, which is half the sampling rate, `fs/2`Hz.
-
-We will therefor limit our study points to the indeices below this threshold value by slicing the tensor.
+We will therefor limit our study points to the indices below this threshold value by slicing the tensor.
 
 ```elixir
-f_max = div(fs, 2)
-amplitudes =  Signal.amplitudes(dft) |> Nx.slice([0], [f_max])
+n = Nx.size(dft)
 
+# Nyquist threshold: 
+max_freq_index = div(n, 2) 
 
-f_draw = 100
+# thus we keep only the meaningfull values
+amplitudes =  Nx.abs(dft)[0..max_freq_index]
 
+frequencies = NxSignal.fft_frequencies(fs, fft_length: max_freq_index)
 
 data1 = %{
-  x: 0..f_draw,
-  y: Nx.to_list(amplitudes) |> Enum.take(f_draw)
+  frequencies: Nx.to_list(frequencies),
+  amplitudes: Nx.to_list(amplitudes) 
 }
 ```
 
-<!-- livebook:{"attrs":"eyJjaGFydF90aXRsZSI6bnVsbCwiaGVpZ2h0IjozMDAsImxheWVycyI6W3siYWN0aXZlIjp0cnVlLCJjaGFydF90eXBlIjoicG9pbnQiLCJjb2xvcl9maWVsZCI6bnVsbCwiY29sb3JfZmllbGRfYWdncmVnYXRlIjpudWxsLCJjb2xvcl9maWVsZF9iaW4iOm51bGwsImNvbG9yX2ZpZWxkX3NjYWxlX3NjaGVtZSI6bnVsbCwiY29sb3JfZmllbGRfdHlwZSI6bnVsbCwiZGF0YV92YXJpYWJsZSI6ImRhdGExIiwiZ2VvZGF0YV9jb2xvciI6ImJsdWUiLCJsYXRpdHVkZV9maWVsZCI6bnVsbCwibG9uZ2l0dWRlX2ZpZWxkIjpudWxsLCJ4X2ZpZWxkIjoieCIsInhfZmllbGRfYWdncmVnYXRlIjpudWxsLCJ4X2ZpZWxkX2JpbiI6bnVsbCwieF9maWVsZF9zY2FsZV90eXBlIjpudWxsLCJ4X2ZpZWxkX3R5cGUiOiJxdWFudGl0YXRpdmUiLCJ5X2ZpZWxkIjoieSIsInlfZmllbGRfYWdncmVnYXRlIjpudWxsLCJ5X2ZpZWxkX2JpbiI6bnVsbCwieV9maWVsZF9zY2FsZV90eXBlIjpudWxsLCJ5X2ZpZWxkX3R5cGUiOiJxdWFudGl0YXRpdmUifV0sInZsX2FsaWFzIjoiRWxpeGlyLlZlZ2FMaXRlIiwid2lkdGgiOjYwMH0","chunks":null,"kind":"Elixir.KinoVegaLite.ChartCell","livebook_object":"smart_cell"} -->
-
 ```elixir
-VegaLite.new(width: 600, height: 300)
-|> VegaLite.data_from_values(data1, only: ["x", "y"])
-|> VegaLite.mark(:point)
-|> VegaLite.encode_field(:x, "x", type: :quantitative)
-|> VegaLite.encode_field(:y, "y", type: :quantitative)
+VegaLite.new(width: 700, height: 300)
+|> VegaLite.data_from_values(data1) #, only: ["f", "amp"])
+|> VegaLite.mark(:bar)
+|> VegaLite.encode_field(:x, "frequencies", type: :quantitative, title: "frequency (Hz)",
+      #axis: [tick_min_step: 1],
+      scale: [domain: [0, 60]]
+)
+|> VegaLite.encode_field(:y, "amplitudes", type: :quantitative, title: "amplitutde", scale: [domain: [0, 30]])
 ```
 
 We see the peaks at 5Hz, 15Hz and 20Hz with their amplitudes.
 
-This is indeed our incomming signa!! 🎉
+This is indeed our incomming signal 🎉
 
-We can peek into our data:
+We can confirm this visual inspection with a peek into our data:
 
 ```elixir
-{v, idx} = Nx.top_k(amplitudes, k: 3)
+{values, indices} = Nx.top_k(amplitudes, k: 10) 
+  
+filtered_top_frequencies = fn values, indices, threshold ->
+  v = Nx.to_list(values) 
+  v0 = Enum.at(v,0)
+  Enum.zip(v, Nx.to_list(indices))
+  |> Enum.filter(fn {v,_idx} -> v >=  v0 * threshold end)
+  |> Enum.unzip()
+  |> elem(1)
+
+end
+
+IO.puts("The top frequencies are: #{inspect(filtered_top_frequencies.(values, indices, 0.001 ))}")
 ```
