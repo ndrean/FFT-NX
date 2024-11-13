@@ -82,13 +82,13 @@ We will run a Fast Fourrier Transform. It transforms a time-domain function into
 
 <!-- livebook:{"break_markdown":true} -->
 
-#### Build the signal
+### Build the signal
 
 Lets build a signal that we want to discover!
 
-It will be the sum of three sinusoidal signals, one at 5Hz, one at 15Hz and a last one at 20Hz with the corresponding amplitudes (1, 0.5, 0.25).
+It will be the sum of two sinusoidal signals, one at 5Hz, and one at 20Hz with the corresponding amplitudes (1, 0.5).
 
-$\sin(2\pi*5*t) + \frac12 \sin(2\pi*15*t) + \frac14 \sin(2\pi*20*t)$
+$\sin(2\pi*5*t) + \frac12 \sin(2\pi*20*t)$
 
 Suppose we have a sampling rate of `fs=50Hz` (meaning 50 samples per second) and our aquisition time is `duration = 1s`.
 We build a time series with a linear space of `fs`  equally spaced points with the given `duration` with `Nx.linspace`. For each value of the discrete time $t$, we will calculate the "hidden" signal at $t$ in the module below. This will give us the sampling.
@@ -120,7 +120,7 @@ fs = 50; duration= 1
 samples = Signal.sample(fs: fs, duration: 1)
 ```
 
-#### Analyse the signal with DFT
+### Analyse the signal with DFT
 
 The DFT algorithm takes our sampling (a time-series) and __approximates the original signal__.
 
@@ -194,7 +194,7 @@ end
 IO.puts("The top frequencies are: #{inspect(filtered_top_frequencies.(values, indices, 0.001 ))}")
 ```
 
-#### Visualize the original signal and the IFFT reconstructed
+### Visualize the original signal and the IFFT reconstructed
 
 Let's visualize our incoming signal over 400ms. This correspond to 2 periods of our 5Hz signal.
 
