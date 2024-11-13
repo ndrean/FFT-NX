@@ -82,6 +82,8 @@ We will run a Fast Fourrier Transform. It transforms a time-domain function into
 
 <!-- livebook:{"break_markdown":true} -->
 
+#### Build the signal
+
 Lets build a signal that we want to discover!
 
 It will be the sum of three sinusoidal signals, one at 5Hz, one at 15Hz and a last one at 20Hz with the corresponding amplitudes (1, 0.5, 0.25).
@@ -96,13 +98,16 @@ defmodule Signal do
   import Nx.Defn
   import Nx.Constants, only: [pi: 0]
 
+  defn source(t) do
+    f1 = 5; f2 = 20; 
+    Nx.sin(2 * pi() * f1 * t ) + 1/2 * Nx.sin(2 * pi() * f2 * t)
+  end
+
   defn sample(opts) do
     fs = opts[:fs]
     duration = opts[:duration]
-    sampling = Nx.linspace(0, duration, n: fs, endpoint: false, type: {:f, 32})
-    
-    f1 = 5; f2 = 15; f3 = 20
-    Nx.sin(2 * pi() * f1 * sampling ) + 1/2 * Nx.sin(2 * pi() * f2 * sampling) + 1/4 * Nx.sin(2 * pi() * f3 * sampling )
+    sampling = Nx.linspace(0, duration, n: fs, endpoint: false, type: {:f, 64})
+    source(sampling)
   end
 end
 ```
@@ -114,6 +119,8 @@ fs = 50; duration= 1
 
 samples = Signal.sample(fs: fs, duration: 1)
 ```
+
+#### Analyse the signal with DFT
 
 The DFT algorithm takes our sampling (a time-series) and __approximates the original signal__.
 
@@ -127,7 +134,7 @@ The `Nx.fft` function takes our sampling and returns a list of Fourrier coeficie
 dft = Nx.fft(samples)
 ```
 
-Our frequency resolution  - the accuracy of the DFT algorithm - is limited by the Nyquist frequency, which is half the sampling rate, `fs/2`Hz.
+Our frequency resolution  - the accuracy of the DFT algorithm - is limited by the Nyquist frequency, which is half the sampling rate, thus 25 Hz.
 
 [Nyquist](https://en.wikipedia.org/wiki/Nyquist_frequency)
 
@@ -137,38 +144,39 @@ We will therefor limit our study points to the indices below this threshold valu
 n = Nx.size(dft)
 
 # Nyquist threshold: 
-max_freq_index = div(n, 2) 
+max_freq_index = div(n, 2)
 
 # thus we keep only the meaningfull values
 amplitudes =  Nx.abs(dft)[0..max_freq_index]
 
-frequencies = NxSignal.fft_frequencies(fs, fft_length: max_freq_index)
+frequencies = NxSignal.fft_frequencies(fs, fft_length: n)[0..max_freq_index]
 
 data1 = %{
   frequencies: Nx.to_list(frequencies),
   amplitudes: Nx.to_list(amplitudes) 
 }
-```
 
-```elixir
 VegaLite.new(width: 700, height: 300)
 |> VegaLite.data_from_values(data1) #, only: ["f", "amp"])
 |> VegaLite.mark(:bar)
 |> VegaLite.encode_field(:x, "frequencies", type: :quantitative, title: "frequency (Hz)",
       #axis: [tick_min_step: 1],
-      scale: [domain: [0, 60]]
+      scale: [domain: [0, 80]]
 )
-|> VegaLite.encode_field(:y, "amplitudes", type: :quantitative, title: "amplitutde", scale: [domain: [0, 30]])
+|> VegaLite.encode_field(:y, "amplitudes", 
+  type: :quantitative, 
+  title: "amplitutde", 
+  scale: [domain: [0, 50]])
 ```
 
-We see the peaks at 5Hz, 15Hz and 20Hz with their amplitudes.
+We see the peaks at 5Hz, 20Hz with their amplitudes.
 
 This is indeed our incomming signal 🎉
 
 We can confirm this visual inspection with a peek into our data:
 
 ```elixir
-{values, indices} = Nx.top_k(amplitudes, k: 10) 
+{values, indices} = Nx.top_k(amplitudes, k: 5) 
   
 filtered_top_frequencies = fn values, indices, threshold ->
   v = Nx.to_list(values) 
@@ -182,3 +190,28 @@ end
 
 IO.puts("The top frequencies are: #{inspect(filtered_top_frequencies.(values, indices, 0.001 ))}")
 ```
+
+#### Visualize the original signal
+
+Let's visualize our incoming signal over 400ms. This correspond to 2 periods of our 5Hz signal.
+We compute the signal very (400/200=) 2ms to have a smooth curve.
+
+```elixir
+t = NxSignal.fft_frequencies(2/5, fft_length: 200)
+samples = Signal.source(t)
+
+scale_t = Nx.linspace(0, 400, n: 200, endpoint: false)
+
+data = %{
+  x: Nx.to_list(scale_t),
+  y: Nx.to_list(samples)
+}
+
+VegaLite.new(width: 600, height: 300)
+|> VegaLite.data_from_values(data, only: ["x", "y"])
+|> VegaLite.mark(:line)
+|> VegaLite.encode_field(:x, "x", type: :quantitative, title: "time (ms)")
+|> VegaLite.encode_field(:y, "y", type: :quantitative, title: "signal")
+```
+
+We see that during 400ms, we have 2 periods of a longer period signal,  and 8 of a shorter and smaller perturbation period signal.
