@@ -1,4 +1,4 @@
-# Discrete Fourrier Transform with Nx
+# Discrete Fourier Transform with Nx
 
 ```elixir
 Mix.install(
@@ -11,80 +11,68 @@ Mix.install(
   ],
   config: [nx: [default_backend: EXLA.Backend]]
 )
-
-Nx.Defn.global_default_options(compiler: EXLA, client: :host)
 ```
 
 ## Using complex numbers
 
-Take the complex number "one" defined by: $1+i$.
+Take the complex number "z" defined by: $1+i$.
 
-Since `Nx` brings in the library `Complex`, we can define a complex number by `Complex.new/1`:
+Since `Nx` depends on the library `Complex`, we can define a complex number by `Complex.new/1`:
 
 ```elixir
-one = Complex.new(1,1)
+z = Complex.new(1,1)
 ```
 
-Its norm is $ \sqrt{2}$, and angle is $\pi/4$.
+Its absolute value is $ \sqrt{2} \approx 1.4142$, and its phase  is $\pi/4\approx 0.7853$ radians.
 
 ```elixir
 sqrt_2 = :math.sqrt(2)
 pi_4 = :math.pi()/4
 
-{
-  Complex.abs(one) == sqrt_2,
-  Complex.phase(one) == pi_4
-}
+{Complex.abs(z) == sqrt_2, Complex.phase(z) == pi_4}
 ```
 
-Its polar form is:
+Its polar form is: $\sqrt2\exp^{i\pi/4}\coloneqq \sqrt2\lparen \cos(\pi/4)+i\sin(\pi/4)\rparen$
 
-$ \sqrt{2}\big(\cos(\pi/4) + i\sin(\pi/4)\big) = \sqrt{2} \exp^{i \pi/4}$.
-
-We can use `Complex.from_polar/2`:
+We can use `Complex.from_polar/2` to build a complex number from its polar definition:
 
 ```elixir
-cx_one = Complex.from_polar(sqrt_2, pi_4)
+z = Complex.from_polar(:math.sqrt(2), :math.pi()/4)
 ```
 
-If we need a tensor, we would do:
+If we need a tensor from "z", we would do:
 
 ```elixir
-Nx.tensor(one)
+Nx.tensor(z)
 ```
 
 We can use directly `Nx` to build a complex from its cartesian coordinates:
 
 ```elixir
-t_one = Nx.complex(1,1)
+t = Nx.complex(1,1)
 ```
 
 and compute its norm and phase:
 
 ```elixir
-{
-  Nx.abs(t_one),
-  Nx.phase(t_one)
-}
+{Nx.abs(t), Nx.phase(t)}
 ```
 
-These are "tensor" aware functions.
+Most of the Nx API will work normally with complex numbers and tensors. The function `sort` is an exception since its relies on ordering of values.
+
+For example, we can pass a tensor to `Nx.abs`: it will apply the function element-wise.
 
 ```elixir
-t = Nx.stack([t_one,Nx.complex(1,0)])
-
-Nx.abs(t)
+Nx.stack([t,z]) |> Nx.abs()
 ```
 
-We also have the imaginary number $i$ defined within `Nx.Constants`. Once imported, we can use it:
+We also have the imaginary constant $i$. It is defined within `Nx.Constants`.
 
 ```elixir
-i = Nx.Constants.i()
+import Nx.Constants
 
-Nx.add(1 , i)
+Nx.add(1 , i())
 ```
-
-It can be useful within a numerical function, defined using `defn`.
 
 For example, we can do:
 
@@ -98,32 +86,35 @@ defmodule Example do
   end
 end
 
-Nx.equal(Example.rotate(one), Nx.complex(-1,1))
+Example.rotate(z)
 ```
 
-## Discrete Fourrier Transform
+## Advanced Applications - The Discrete Fourier Transform (DFT)
 
-Suppose we have a periodic signal, and we want to sample to understand it.
+A signal is a sequence of numbers $[(t_1, f(t_1)), \dots,(t_n, f(t_n)) ]$ which we name samples.
 
-We will run a Fast Fourrier Transform. It transforms a time-domain function into the frequency domain. Let's see how.
+The "t" numbers can be viewed as time bins or spatial coordinates, depending upon the subject.
 
-<https://en.wikipedia.org/wiki/Discrete_Fourier_transform>
+A common aspect people tend to analyze in periodic signals is their frequency composition and intensity.
+For that, we can use the Discrete Fourier Transform. It takes the samples and outputs a sequence of complex numbers. These numbers represent each sinuaidal component. In other words, it outputs the representation of the sample in the frequency domain.
+
+Nx provides the `fft`function. It uses the Fast Fourrier Transform algorithm, an implementation of the DFT.
 
 <!-- livebook:{"break_markdown":true} -->
 
 ### Build the signal
 
-Let's build a signal that we want to discover!
+The signal we want to analyze will be the sum of two sinusoidal signals, one at 5Hz (ie 5 periods/s), and one at 20Hz (ie 20 periods/s) with the corresponding amplitudes (1, 0.25).
 
-It will be the sum of two sinusoidal signals, one at 5Hz, and one at 20Hz with the corresponding amplitudes (1, 0.5).
+$$
+f(t) = \sin(2\pi\cdot 5\cdot t) + \frac14 \sin(2\pi\cdot 20 \cdot t)
+$$
 
-$f(t) = \sin(2\pi*5*t) + \frac12 \sin(2\pi*20*t)$
+We build it and decompose and analyze later on.
 
-Suppose we can sample at `fs=50Hz` (meaning 50 samples per second) and our aquisition time is `duration = 1s`.
+We build a time series of n points equally spaced with the given `duration` interval with the Nx function `Nx.linspace`.
 
-We build a time series of `fs` points equally spaced with the given `duration` interval with `Nx.linspace`.
-
-For each value of this serie (the discrete time $t$), we will calculate the "hidden" signal $f(t)$ in the module below. This will give us the sampling.
+More precisely, we sample at `fs=50Hz` (meaning 50 samples per second) and our aquisition time is `duration = 1s`. We will get $50\cdot 1 = 50$ points.
 
 ```elixir
 defmodule Signal do
@@ -132,14 +123,15 @@ defmodule Signal do
 
   defn source(t) do
     f1 = 5; f2 = 20;
-    Nx.sin(2 * pi() * f1 * t ) + 1/2 * Nx.sin(2 * pi() * f2 * t)
+    Nx.sin(2 * pi() * f1 * t ) + 1/4 * Nx.sin(2 * pi() * f2 * t)
   end
 
   defn sample(opts) do
-    fs = opts[:fs]
+    start = opts[:start]
     duration = opts[:duration]
-    sampling = Nx.linspace(0, duration, n: fs, endpoint: false, type: {:f, 32})
-    source(sampling)
+    fs = opts[:fs]
+    bins = Nx.linspace(start, duration + start, n: duration * fs, endpoint: false, type: :f32)
+    source(bins)
   end
 end
 ```
@@ -147,47 +139,34 @@ end
 We sample our signal at fs=50Hz during 1s:
 
 ```elixir
-fs = 50; duration= 1
+opts = [start: 0, fs: 50, duration: 1]
 
-sample = Signal.sample(fs: fs, duration: 1)
+sample = Signal.sample(opts)
 ```
 
 ### Analyse the signal with DFT
 
-The DFT algorithm will **approximates the original signal**. It gives us the following information:
+The DFT algorithm will **approximates the original signal**. It returns a sequence of complex numbers separated in frequency bins. Each number represents the amplitude and phase for each frequency.
 
-> The number at the index $i$ of the DFT results gives an approximation of the amplitude and phase of the sampled signal at the frequency $i$.
-
-In other words, doing `Nx.fft(sample)` returns a list of numbers indexed by the frequency.
-
-These numbers are complex numbers as they carry the amplitude and phase information.
+> The number at the index $i$ of the DFT results is a complex number than approximates the amplitude and phase of the sampled signal at the frequency $i$.
 
 ```elixir
 dft = Nx.fft(sample)
 ```
 
-Our frequency resolution - the accuracy of the DFT algorithm - is limited by the Nyquist rate, which is half the sampling rate, thus 25 Hz.
+We are interested in the amplitudes only here. We use the Nx function `Nx.abs` to obtain the absolute vlue at each point.
 
-Check [Nyquist](https://en.wikipedia.org/wiki/Nyquist_rate) to read more.
-
-We will therefor limit our study points to the indices below this threshold value by slicing the tensor, thus retain the 25 first ones.
-
-We are interested in the amplitudes only here. This is calculated by taking the norm of each number (`Nx.abs`).
+Furthermore, we limit our study points to the first half of the "dft" sequence because it is symmetrical.
 
 ```elixir
 n = Nx.size(dft)
-
-# Nyquist threshold:
 max_freq_index = div(n, 2)
 
-# thus we keep only the meaningfull values
 amplitudes =  Nx.abs(dft)[0..max_freq_index]
 
-# the frequency bins, "n" of them spaced with fs/n=1
-frequencies = NxSignal.fft_frequencies(fs, fft_length: n)[0..max_freq_index]
-
+# for plotting
 data1 = %{
-  frequencies: Nx.to_list(frequencies),
+  frequencies: (for i<- 0..max_freq_index, do: i),
   amplitudes: Nx.to_list(amplitudes)
 }
 
@@ -206,87 +185,58 @@ VegaLite.new(width: 700, height: 300)
 )
 ```
 
-We see the peaks at 5Hz, 20Hz with their amplitudes (the second is half the first).
+Our synthetized signal has spikes at 5Hz and 20Hz. The amplitude of the spike at 20Hz is approx. a fourth of the amplitude of the spike at 5Hz. This is indeed our incomming signal 🎉.
 
-This is indeed our incomming signal 🎉
-
-We can confirm this visual inspection with a peek into our data. We use `Nx.top_k` function.
-
-```elixir
-{values, indices} = Nx.top_k(amplitudes, k: 5)
-
-filtered_top_frequencies = fn values, indices, threshold ->
-  v = Nx.to_list(values)
-  v0 = Enum.at(v,0)
-  Enum.zip(v, Nx.to_list(indices))
-  |> Enum.filter(fn {v,_idx} -> v >=  v0 * threshold end)
-  |> Enum.unzip()
-  |> elem(1)
-
-end
-
-IO.puts("The top frequencies are: #{inspect(filtered_top_frequencies.(values, indices, 0.001 ))}")
-```
+<!-- livebook:{"break_markdown":true} -->
 
 ### Visualize the original signal and the IFFT reconstructed
 
-Let's visualize our incoming signal over 400ms. This correspond to 2 periods of our 5Hz signal.
+Let's visualize our original signal. We want a smooth curve so we will sample 200 equidistant points. We select 2 periods of our 5Hz signal. The duration of the sampling is therefor 2/5s = 400ms. This means that our sampling rate is 2ms (ie 500Hz).
 
-We compute the signal every (400/200=) 2ms to have a smooth curve.
+We also add the "reconstructed" signal via the **Inverse Discrete Fourier Transform** available as `Nx.ifft`.
 
-We also add the "reconstructed" signal via the **Inverse Fast Fourrier Transform** available as `Nx.ifft`. This gives us 50 points (we sampled as 50Hz during 1s). We display them as a bar chart next to the "smooth" real signal.
+It will give us 50 values spaced by 1000/50=200ms (we sampled as 50Hz during 1s). Since we display 2/5 = 400ms, we take 20 of them. We display them below as a bar chart.  The original signal should envelope the reconstructed signal.
 
 ```elixir
 #----------- REAL SIGNAL
 # compute 200 points of the "real" signal during 2/5=400ms (twice the main period)
 
-t = NxSignal.fft_frequencies(2/5, fft_length: 200)
+r = 2/5
+l = round(50*r)
+
+t = NxSignal.fft_frequencies(r, fft_length: 200)
 sample = Signal.source(t)
 
 #----------- RECONSTRUCTED IFFT
-# compute the reconstructed IFFT signal: we get fs=50 points in the range [0..duration=1s]
-y_ifft = Nx.ifft(dft) |> Nx.real()
-l = Nx.size(y_ifft)
-
-# for the graph, we reconstruct  a tensor of 400 points whose values are all zeros
-# except the 400/200 = 20 points spaced every 10th index
-# [y_ifft[0], 0,....,y_fft[1], 0,...., ]
-
-# because the time interval of real signal is 1000/50 = 20ms,
-# and here we draw a point every 400/200= 2ms
-
-
-nb = 20
-
-y_reconstructed =
-  Nx.indexed_put(
-    Nx.broadcast(0.0, {400}),
-    Nx.iota({nb}) |> Nx.dot(10) |> Nx.reshape({nb, 1}),
-    y_ifft[0..nb-1]
-  )
-#----------------
-
+# compute the reconstructed IFFT signal (50 points) and sample 20 of them
+yr = Nx.ifft(dft) |> Nx.real() 
 
 data = %{
   x: Nx.to_list(t),
   y: Nx.to_list(sample),
-  yr: Nx.to_list(y_reconstructed)
+}
+
+data_r = %{
+  x: (for i<- 0..l-1, do: i/50),
+  y: Nx.to_list(yr[0..l-1])
 }
 
 
-VegaLite.new(width: 600, height: 300)
-|> VegaLite.data_from_values(data)
+VegaLite.new(width: 700, height: 300)
 |> VegaLite.layers([
   VegaLite.new()
-  |> VegaLite.mark(:line)
+  |> VegaLite.data_from_values(data)
+  |> VegaLite.mark(:line, tooltip: true)
   |> VegaLite.encode_field(:x, "x", type: :quantitative, title: "time (ms)", scale: [domain: [0, 0.4]])
   |> VegaLite.encode_field(:y, "y", type: :quantitative, title: "signal"),
   VegaLite.new()
+  |> VegaLite.data_from_values(data_r)
   |> VegaLite.mark(:bar)
   |> VegaLite.encode_field(:x, "x", type: :quantitative, scale: [domain: [0, 0.4]])
-  |> VegaLite.encode_field(:y, "yr", type: :quantitative, title: "reconstructed"),
+  |> VegaLite.encode_field(:y, "y", type: :quantitative, title: "reconstructed")
+  |> VegaLite.encode_field(:order, "x")
 ])
-|> VegaLite.resolve(:scale, y: :independent)
+#|> VegaLite.resolve(:scale, y: :independent)
 
 ```
 

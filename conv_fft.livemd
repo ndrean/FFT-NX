@@ -20,11 +20,11 @@ Mix.install(
 
 A pragmatic point-of-view: when you write a multiplication of two integers, you do a convolution!
 
-We give fanother example urther down  of using convolution when multiplying two polynomials: it is basically the same idea).
+We give another example further down  of a convolution;  when you multiply two polynomials, you do a convolution (it is basically the same idea).
 
 Formely, a __convolution product__ is a mathematical operation that can be understood as a sum of "sliding products" between two tensors.
 
-It is widely used in signal processing. The two operands are typically a signal and a kernel (aka filter).
+It is widely used in signal processing.
 
 #### How do you compute it?
 
@@ -141,7 +141,7 @@ VegaLite.new(width: 700, height: 400)
   |> VegaLite.data_from_values(signal, only: ["x", "y"])
   |> VegaLite.mark(:line)
   |> VegaLite.encode_field(:x, "x", type: :quantitative ,title: "time samples (s)")
-  |> VegaLite.encode_field(:y, "y", type: :quantitative, title: "signal amplitude", color: [scale: [range: "red"]]),
+  |> VegaLite.encode_field(:y, "y", type: :quantitative, title: "signal amplitude"),
   VegaLite.new()
   |> VegaLite.data_from_values(conv_s_f, only: ["x", "y"])
   |> VegaLite.mark(:line)
@@ -260,14 +260,11 @@ We will successfully:
 * "suround" the tensor with zeroes
 
 ```elixir
-{
-  Nx.pad(m, 0, [{1,1,0}, {0,0,0}]), 
-  Nx.pad(m, 0, [{0,0,0}, {1,1,0}]), 
-  Nx.pad(m, 0, [{1,1,0}, {1,1,0}])
-}
+{Nx.pad(m, 0, [{1,1,0}, {0,0,0}]), Nx.pad(m, 0, [{0,0,0}, {1,1,0}]), 
+  Nx.pad(m, 0, [{1,1,0}, {1,1,0}])}
 ```
 
-## Example: polynomial product using convolution
+## Example: polynomial multiplication using convolution
 
 You can use the convolution product to compute the coefficients of the product of two polynomials.
 
@@ -534,6 +531,6 @@ Nx.concatenate([model_four, conv_four], axis: -1)
 |> StbImage.resize(500, 1500)
 ```
 
-## Convolution and Fast Fourier Transform
+## Convolution (P Valente example)
 
 ## Convolution and music
