@@ -85,7 +85,7 @@ For example, you have a tensor that represents an RGBA image (coloured). Its sha
 You may want to set 4 for the batch_size, to batch per colour layer. We will use a permutation on the tensor. How?
 
 * you add a new dimension: `Nx.new_axis(t, 0)`. The new shape of the tensor is `{1, 256,256,4}`.
-* you set the `permutation_input` to permute the tensor with `[3,0,1,2]` because the second dimension must be the channel. This respects the pattern:
+* you set the `permutation_input` to permute the tensor with `[3,0,1,2]` because the second dimension must be the channel. You understand why you had to add a "fake" dimension to respect the pattern:
 
 batch_size=4, channels=1, dim_1 = 256, dim_2=256
 
