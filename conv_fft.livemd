@@ -537,11 +537,40 @@ We want to apply a blurring" filter onto our webcam feed.
 
 It works to convoluting the image by a kernel which will take the "gaussian" mean of the area of the image processed by the kernel.
 
+Most tensor manipulations used below are described in this post:
+
+<https://dockyard.com/blog/2022/03/15/nx-for-absolute-beginners>
+
+More precisely, the "blur" kernel is produced as follows:
+
+* given a desired `kernel_size` and the mean `sigma`,
+* it produces two vectors of integers `x` and `y` centered at 0 and of length the next odd number. For example, if the size is 2, it produces two vectors `[-1, 0, 1]`. If the size is 3, it produces the same two vectors (you want 0 to be "in the middle")
+* you then use all the couples $(x_i,y_j)$ to compute the gaussian coefficients. For example with a size of 3, you will get 3x3=9 gaussian coefficients.
+  $$
+  \dfrac1{2\pi\sigma^2}\cdot \exp^{\dfrac{-x_i^2+y_j^2}{2\sigma}}
+  $$
+* you normalize them as their sum must be 1.
+
+We then run a convolution between the input (a tensor of an image) and this kernel.
+
+Ths input is expected to be presented as `{height, width, channel}` with the type `:u8`, integers ranging from 0 to 255.
+For example, a 256x256 colour PNG image will be have the shape `{256, 256, 4}`, with 4 layers of integers between 0 and 255 (plus some headers).
+
+The image tensor will be transformed into floats in the range [0..1] simply by divided term by term by 255.
+
+The computations are then batched per colour, so you add a dimension to the tensors and permute then to present the channel to be batched.
+
+Once the convolution is done,
+
+* you get rid of this extra "1" dimension with `Nx.squeeze`
+* and rescale to 0..255, and then round thses floats to the nearest integer by casting into the type `:u8` as you need integers to produce an image.
+
 ```elixir
 # PValente filters
 
 defmodule Filter do
   import Nx.Defn
+  import Nx.Constants, only: [pi: 0]
 
   deftransform get_odd_size(opts) do
     size = opts[:kernel_size]
@@ -564,7 +593,7 @@ defmodule Filter do
     kernel =
       Nx.exp(-(x * x + y * y) / (2 * sigma * sigma))
 
-    kernel = kernel / (2 * Nx.Constants.pi() * sigma * sigma)
+    kernel = kernel / (2 * pi() * sigma * sigma)
 
     kernel = Nx.devectorize(kernel)
 
@@ -601,7 +630,13 @@ defmodule Filter do
 end
 ```
 
-This module run the embedded webcam and produces a blurred copy of it.
+We can peak to see what the kernel looks like:
+
+```elixir
+Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
+```
+
+The module below runs the embedded webcam of your computer and produces a blurred copy of it.
 
 It uses the convolution module above to blur each frame.
 
@@ -687,6 +722,7 @@ defmodule Streamer do
     """
   end
 end
+
 ```
 
 ```elixir
