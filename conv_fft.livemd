@@ -1,4 +1,4 @@
-# Continuation...Using Convolution
+# Convolution with Nx
 
 ```elixir
 Mix.install(
