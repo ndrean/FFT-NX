@@ -533,7 +533,7 @@ Nx.concatenate([model_five, conv_five], axis: -1)
 
 ## Convolution live example
 
-We want to apply a blurring" filter onto an image.
+We want to apply a blurring" filter onto our webcam feed.
 
 It works to convoluting the image by a kernel which will take the "gaussian" mean of the area of the image processed by the kernel.
 
@@ -601,9 +601,9 @@ defmodule Filter do
 end
 ```
 
-```elixir
-File.cwd()
-```
+This module run the embedded webcam and produces a blurred copy of it.
+
+It uses the convolution module above to blur each frame.
 
 ```elixir
 defmodule Streamer do
