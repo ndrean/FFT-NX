@@ -1,3 +1,3 @@
-# Discrete Fourrier Transform with Nx
+# Discrete Fourier Transform with Nx
 
-A Livebook.
+Livebooks on `FFT` and `convolution`.
