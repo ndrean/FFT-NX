@@ -124,7 +124,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EXLA.Backend<host:0, 0.1232349972.2063466521.181064>
+  EXLA.Backend<host:0, 0.989300885.2099904535.58802>
   [
     [1, 2],
     [3, 4]
@@ -148,7 +148,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EXLA.Backend<host:0, 0.1232349972.2063466512.180753>
+   EXLA.Backend<host:0, 0.989300885.2099904528.58520>
    [
      [0, 0],
      [1, 2],
@@ -158,7 +158,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EXLA.Backend<host:0, 0.1232349972.2063466512.180755>
+   EXLA.Backend<host:0, 0.989300885.2099904528.58522>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -166,7 +166,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EXLA.Backend<host:0, 0.1232349972.2063466512.180757>
+   EXLA.Backend<host:0, 0.989300885.2099904528.58524>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -702,9 +702,9 @@ params = Axon.Loop.run(loop, training_data, %{}, epochs: 20,  iterations: 50, co
 
 ```
 
-17:07:06.864 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
+21:57:38.552 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
 
-17:07:06.875 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
+21:57:38.561 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
 Epoch: 0, Batch: 0, loss: 0.0000000
 Epoch: 1, Batch: 0, loss: 4095.9575195
 Epoch: 2, Batch: 0, loss: 2760.0224609
@@ -889,7 +889,7 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 ```
 #Nx.Tensor<
   f32[x: 3][y: 3]
-  EXLA.Backend<host:0, 0.3169551846.175767568.16831>
+  EXLA.Backend<host:0, 0.989300885.2099904528.62426>
   [
     [0.011343738064169884, 0.08381950855255127, 0.011343738064169884],
     [0.08381950855255127, 0.6193470358848572, 0.08381950855255127],
@@ -966,9 +966,8 @@ defmodule Streamer do
     
         const processFrame = async (now, metadata) => {
           offscreenCtx.drawImage(video, 0, 0, width, height);
-          const imageData = offscreenCtx.getImageData(0, 0, width, height);
-          const rawData = imageData.data;
-          ctx.pushEvent("new frame", [{}, rawData.buffer]);
+          const {data}  = offscreenCtx.getImageData(0, 0, width, height);
+          ctx.pushEvent("new frame", [{}, data.buffer]);
           video.requestVideoFrameCallback(processFrame);
         };
       } catch (err) {
@@ -995,6 +994,12 @@ end
 
 ```elixir
 Streamer.start()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+nil
 ```
 
 ## Convolution and music
