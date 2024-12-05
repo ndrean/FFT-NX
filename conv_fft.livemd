@@ -678,16 +678,6 @@ defmodule Streamer do
         console.error("Webcam access error:", err);
       }
 
-      function rawDataToPng(binary, width, height) {
-        const imageData = renderCanvasCtx.createImageData(width, height);
-        imageData.data.set(new Uint8ClampedArray(binary));
-        renderCanvasCtx.putImageData(imageData, 0, 0);
-    
-        return new Promise((resolve) => {
-          renderCanvas.toBlob((blob) => resolve(blob), "image/png");
-        });
-      }
-
       ctx.handleEvent("processed_frame", async ([{}, binary]) => {
         await createImageBitmap(new Blob([binary], { type: "image/png" })).then(
           (bitmap) => renderCanvasCtx.drawImage(bitmap, 0, 0)
