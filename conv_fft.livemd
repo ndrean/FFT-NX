@@ -20,9 +20,7 @@ Mix.install(
 
 ## What is a convolution?
 
-A pragmatic point-of-view: when you write a multiplication of two integers, you do a convolution!
-
-We give another example further down  of a convolution;  when you multiply two polynomials, you do a convolution (it is basically the same idea).
+A pragmatic point-of-view: when you write a multiplication of two polynomials, you do a convolution.
 
 Formely, a __convolution product__ is a mathematical operation that can be understood as a sum of "sliding products" between two tensors.
 
