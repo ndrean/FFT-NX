@@ -20,11 +20,11 @@ Mix.install(
 
 ## What is a convolution?
 
-From a pragmatic perspective, multiplying two polynomials is effectively performing a convolution.
+A pragmatic point-of-view: when you write a multiplication of two polynomials, you do a convolution.
 
-Formally, the __convolution product__ is a mathematical operation that can be understood as a sum of "sliding products" between two tensors.
+Formely, a __convolution product__ is a mathematical operation that can be understood as a sum of "sliding products" between two tensors.
 
-This operation is widely used in signal processing and has applications in various fields such as image processing, audio filtering, and machine learning.
+It is widely used in signal processing.
 
 #### How do you compute it?
 
@@ -70,17 +70,9 @@ You have the following parameters:
 
 The shape is expected to be: `{batch_size, channel, dim_1, ...}`
 
-The stride parameter defines how the kernel slides along the axes. A stride of 1 means the kernel moves one step at a time, while larger strides result in skipping over positions.
+The stride describes how you want to slide along the axes: one-by-one are jumps.
 
-The batch_size parameter is crucial when working with colored images, as it allows you to convolve each color channel separately while maintaining the output's color information.
-
-In contrast, for a convolution layer in a neural network, you might average all color channels and work with a grayscale image instead. This reduces computational complexity while still capturing essential features.
-
-#### Example with a vector
-
-If `t = Nx.shape(t)= {n}`, you can simply use `t` as a input in a convolution by doing `Nx.reshape({1,1,n})`. This respects the pattern:
-
-batch_size=1, channel=1, dim_1=n.
+The parameter "batch_size" is important when you have do convolve a coloured image.
 
 #### Example with an image
 
@@ -94,6 +86,12 @@ You may want to set 4 for the batch_size, to batch per colour layer. We will use
 * you set the `permutation_input` to permute the tensor with `[3,0,1,2]` because the second dimension must be the channel. You understand why you had to add a "fake" dimension to respect the pattern:
 
 batch_size=4, channels=1, dim_1 = 256, dim_2=256
+
+#### Example with a vector
+
+If `t = Nx.shape(t)= {n}`, you can simply use `t` as a input in a convolution by doing `Nx.reshape({1,1,n})`. This respects the pattern:
+
+batch_size=1, channel=1, dim_1=n.
 
 ## Padding a tensor
 
@@ -126,7 +124,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EXLA.Backend<host:0, 0.1794540766.3654418452.18102>
+  EXLA.Backend<host:0, 0.417430379.4136763415.170519>
   [
     [1, 2],
     [3, 4]
@@ -150,7 +148,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EXLA.Backend<host:0, 0.1794540766.3654418448.17851>
+   EXLA.Backend<host:0, 0.417430379.4136763408.170273>
    [
      [0, 0],
      [1, 2],
@@ -160,7 +158,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EXLA.Backend<host:0, 0.1794540766.3654418448.17853>
+   EXLA.Backend<host:0, 0.417430379.4136763408.170275>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -168,7 +166,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EXLA.Backend<host:0, 0.1794540766.3654418448.17855>
+   EXLA.Backend<host:0, 0.417430379.4136763408.170277>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -194,10 +192,10 @@ Its "Fourier inverse" is:
 
 $$\dfrac{\sin(2\pi f_c t)}{\pi t}$$
 
-Let's verify the following:
+Let's verify that:
 
-* if we compute the FFT of our signal $s$,  multiply by our window function $\hat{f}$, and then take its IFFT, the resulting signal should have the perturbation at 20Hz removed,
-* If we perform a "standard" convolution of $s$ with the corresponding time-domain representation of the filter $\mathcal{F}^{-1}(\hat{f})$, compute its FFT, and analyze the result, we should find that the transformed signal is free of significant perturbations at 20Hz. Specifically, the FFT of the convolved signal should not exhibit a notable amplitude at 20Hz.
+* if we take the FFT of our signal $s$ and multiply by our window function $\hat{f}$, and take its IFFT, that we have removed the perturbation at 20Hz,
+* if we take the "standard" convolution and take its FFT, then this product should be free of perturbations at 20Hz, and the FFT transformation of this product should not contain a significant amplitude at 20Hz.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -313,7 +311,7 @@ We now work in the frequency domain with the Fourier transform $\hat{s}(\omega)$
 
 We apply a filter $\hat{f}$  in the frequency domain. This function will be equal to 1 for $f<f_c=10$ and 0 elsewhere.
 
-The product $\hat{s} \cdot \hat{f}$  is therefor equivalent to take the $f_c=10$ first elements of $\hat{s}$ and right-pad/concatenante the truncated tensor with _zeros_.
+The product $\hat{s} \cdot \hat{f}$  is therefor equivalent to take the $f_c=10$ first elements of $\hat{s}$ and concatenante it with _zeros_.
 
 We then take the _IFFT_ to return back to the time (or spatial) domain.
 
@@ -325,8 +323,10 @@ x = Nx.linspace(start, end_point, endpoint: false, n: fs, type: :f32)
 s = C.sample(x)
 fft = Nx.fft(s)
 
+
+t_zeros = Nx.broadcast(Nx.complex(0,0), {n-l}) 
 inverse = 
-  Nx.pad(fft[0..l], 0, [{0,n-l, 0}])
+  Nx.concatenate([fft[0..l], t_zeros], axis: -1) 
   |> Nx.ifft() 
   |> Nx.real()
   
@@ -494,19 +494,19 @@ Nx.transpose(five, axes: [1,2,0])
 }
 ```
 
-We can __detect edges__ by performing a discrete differentiation, where the kernel computes the difference between adjacent pixel values. This can be viewed as a discrete approximation of a derivative.
+We can __detect edges__ by computing a discret derivation where the kernel will take the difference between adjacent pixel values. We can view this as a discret differential.
 
-Since the image is slightly blurred, we use a stride of 2, allowing us to skip over intermediate pixels. The kernel is defined as $[-1,0,1]$, which calculates the difference between pixel values separated by two units.
+Because the image is slightly blurred, we will use a stride of 2: the kernel will be $ [-1, 0, 1]$. The convolution will compute a "sum_prod" of the image with these coefficients which take the difference between pixels separated by two units.
 
-This operation can be applied along the width axis to detect vertical edges or along the height axis to detect horizontal edges.
+We can do this along the "width axis" (resp. "height axis") to detect vertical (resp horizontal) edges.
 
-Given pixel coordinates $(i,j)$ where $i$ is the row and $j$ the column, we compute:
+We known that the pixel coordinates are $(i,j)$ with $i$ the row and $j$ the column:
 
 * vertical edges with horizontally adjacent pixels : $\mathrm{pix}(i, j) \cdot (-1) +  \mathrm{pix}(i, j+2) \cdot (1)$ and the kernel will be reshaped into $ {1,1,1,3}$.
 
 * horizontal edges with vertically adjacent pixels: $\mathrm{pix}(i, j) \cdot (-1) +  \mathrm{pix}(i+2, j) \cdot (1)$ and the kernel will be reshaped into $ {1,1,3, 1}$
 
-Below, we compute two transformed images using these vertical and horizontal edge detectors and display the results.
+Below, we build the two transformed image by a vertical and horizontal "edge detector" and display them.
 
 ```elixir
 edge_kernel = Nx.tensor([-1, 0, 1]) 
@@ -543,20 +543,19 @@ Nx.concatenate([vertical_detection, horizontal_detection], axis: -1)
 
 ## Recover the kernel knowing the output
 
-Suppose we have an image and its corresponding transformed version, produced by a convolution.
+Suppose we have an image and its transformed image by a convolution.
 
-Our goal is to recover the convolution kernel "by hand". The will use a simple gradient descent approach.
+We want to recover the convolution kernel "by hand" by running a gradient descent.
 
-This involves iteratively updating the kernel through an optimization process. The update to the kernel is proportional to the gradient of a loss function, which we aim to minimize.
+We will incrementally change the kernel in an iteration process.
 
-The loss function measures the difference between the known output (referred to as vertical_convolution in this case) and the current output image, computed as `Nx.conv(input, current_kernel)`.
+The change of the kernel will be proportional to the gradient of a loss function we want to minimize.
 
-We start with an initial kernel of zeros, working with floats instead of integers.
+The loss function will measure the difference between the known output ("vertical_convolution" here) and the current output image (given by `Nx.conv(input, current_kernel))`.
 
-The algorithm uses a parameter `eps` to control the step size (rate of change) during each iteration. This parameter is critical for achieving stable convergence:
+We will start from the null kernel. Notice we will use floats instead.
 
-* If `eps` is too large, the iterations may become unstable.
-* If `eps` is too small, the process may become slow and could converge to a local minimum instead of a potential global optimum (as no convexity is assumed here).
+> Notice that we use a parameter "eps" to control the rate of change. This parameter is crucial for this algorithm. If it's to big, the iteration might be unstable, and if it's tool small, the iteration might be slow and/or converge to a local minimum.
 
 ```elixir
 five = Nx.reshape(five, {1, 1, 28, 28})
@@ -568,7 +567,7 @@ kernel_init = Nx.tensor([0.0, 0.0, 0.0]) |> Nx.reshape({1,1,1,3})
 defmodule GradDesc do
   import Nx.Defn
 
-  @eps 1.0e-4
+  @learning_rate 1.0e-4
   @itermax 10
 
   defn curr_loss(input, kernel, out) do
@@ -578,7 +577,7 @@ defmodule GradDesc do
 
   defn update(kernel, input, out) do
     der = grad(kernel, fn t -> curr_loss(input, t,  out) end)
-    kernel - der * @eps
+    kernel - der * @learning_rate
   end
 
   defn loop(kernel, input, output) do
@@ -633,11 +632,11 @@ Nx.to_list(k)|> List.flatten()
 
 ## Using an Axon model with a convolution layer to predict vertical edges
 
-Let's use `Axon` to recover the convolution kernel. Our model will consist of a single convolution layer.
+Let's use `Axon` to recover this kernel. Our model will be a simple convolution layer.
 
-We will give to our model a series of images and its transform (by the "known" kernel).
+We will give to our model a serie of images and its transform (by the "known" kernel).
 
-The first 15 images do not contain the number 5. We will apply the "vertical" convolution transform to these images and feed them to the model to help it "learn" how to detect vertical edges.
+The first 15 images do not contain the number 5. We will pass them with the "vertical"-convolution transform to our model to "learn" how to detect vertical edges.
 
 ```elixir
 # we produce a sample of 14 tuples {input, output = conv(input, kernel)} 
@@ -687,7 +686,7 @@ model =
 >
 ```
 
-We train the model with the dataset. Note that it is important to use `compiler: EXLA` for the computation speed.
+We train the model with the dataset
 
 ```elixir
 optimizer = Polaris.Optimizers.adam(learning_rate: 1.0e-2)
@@ -703,9 +702,9 @@ params = Axon.Loop.run(loop, training_data, %{}, epochs: 20,  iterations: 50, co
 
 ```
 
-21:11:36.504 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
+14:52:42.215 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
 
-21:11:36.519 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
+14:52:42.224 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
 Epoch: 0, Batch: 0, loss: 0.0000000
 Epoch: 1, Batch: 0, loss: 4095.9575195
 Epoch: 2, Batch: 0, loss: 2760.0224609
@@ -776,23 +775,15 @@ Nx.concatenate([model_five, conv_five], axis: -1)
 
 ## Convolution live example
 
-We aim to apply a blurring filter to our webcam feed.
+We want to apply a blurring" filter onto our webcam feed.
 
-This is achieved by convolving the image with a Gaussian kernel, which computes a weighted average (the "Gaussian mean") of the pixels within the kernel's area.
+It works to convoluting the image by a kernel which will take the "gaussian" mean of the area of the image processed by the kernel.
 
-Most of the tensor manipulations used below are explained in this post:
+Most tensor manipulations used below are described in this post:
 
 <https://dockyard.com/blog/2022/03/15/nx-for-absolute-beginners>
 
 #### The gaussian kernel
-
-Let’s walk through how the blur kernel is constructed:
-
-Inputs: Start with a desired kernel_size and a standard deviation sigma.
-Generate Vectors: Create two vectors x and y of integers, centered at 0, with lengths equal to the next odd number greater than or equal to kernel_size.
-For example, if kernel_size is 4, the vectors will be [-2, -1, 0, 1, 2].
-If kernel_size is 5, the vectors remain the same (to ensure 0 is in the center).
-Calculate Gaussian Coefficients: For each pair of values $(𝑥_i, y_j)$ from the vectors, compute the Gaussian coefficient:
 
 Let's see how the "blur" kernel is built.
 
@@ -800,30 +791,29 @@ Let's see how the "blur" kernel is built.
 * it produces two vectors of integers `x` and `y` centered at 0 and of length the next odd number. For example, if the size is 4, it produces two vectors `[-2, -1, 0, 1, 2]`. If the size is 5, it produces the same two vectors (you want 0 to be "in the middle")
 * you then use all the couples $(x_i,y_j)$ from these two vectors to compute the gaussian coefficients. For example with a size of 4, you will get 5x5=25 gaussian coefficients.
   $$
-  \dfrac1{2\pi\sigma^2}\cdot \exp^{\big(\dfrac{-x_i^2+y_j^2}{2\sigma}\big)}
+  \dfrac1{2\pi\sigma^2}\cdot \exp^{\dfrac{-x_i^2+y_j^2}{2\sigma}}
   $$
-* For a kernel size of 4, this results in 5x5=25 Gaussian coefficients.
-* Normalize: Scale the coefficients so their sum equals 1. This ensures that the resulting kernel preserves the overall brightness of the image.
+* you normalize them as their sum must be 1.
 
 #### The convolution
 
-We then perform a convolution between the input (a tensor representing an image) and the given kernel.
+We then run a convolution between the input (a tensor of an image) and this kernel.
 
-The input is expected to have the shape `{height, width, channel}` and a data type of `:u8`, representing integers ranging from 0 to 255. For example, a 256x256 color PNG image would have the shape `{256, 256, 4}`, where the 4 channels correspond to RGBA values.
+Ths input is expected to be presented as `{height, width, channel}` with the type `:u8`, integers ranging from 0 to 255.
+For example, a 256x256 colour PNG image will be have the shape `{256, 256, 4}`, with 4 layers of integers between 0 and 255 (plus some headers).
 
-To prepare the image for computation, the tensor is converted to floats in the range [0, 1] by dividing each element by 255.
+The image tensor will be transformed into floats in the range [0..1] simply by divided term by term by 255.
 
-To reduce the computational load, we process only every second pixel. This effectively downsamples the image from, for example, 256x256 to 128x128. This is achieved using strides [2, 2], which skip every other row and column.
+We want ot reduce the computations by computing one pixel out of two. This means instead of, for example an image of size 256x256, we reduce it to 128x128. This can be done using `strides: [2,2]`. You skip above one out of two row and column.
 
-As noted earlier, the convolution operation expects the input format `{batch_size, channel, dim_1, dim_2, ...}`.
+As said above, the convolution expects the format `{batch_size, channel, dim_1, dim_2,..}`.
 
-To accommodate this, we batch the computations by color channel. First, we add an additional dimension to the tensor using `Nx.axis_new`, and then permute the axes to bring the channel dimension into the batch position. This transforms the tensor from `{256, 256, 4}` to `{4, 1, 256, 256}`. The permutation is specified using the `input_permutation` parameter.
+We want to batch the computations _per colour_.  You therefor add a dimension to the tensors  with `Nx.axis_new`, and permute then to present the channel to be batched; from `{256,256,4}` to `{4, 1, 256, 256}`. THe permutation is done with the parameter `input_permutation`.
 
-Once the convolution is complete:
+Once the convolution is done,
 
-* The extra singleton dimension is removed using `Nx.squeeze`.
-* The resulting floats are rescaled back to the range [0, 255].
-* The values are rounded to the nearest integer and cast back to the type `:u8`, as integers are required to produce a valid RGB image.
+* you get rid of this extra "1" dimension with `Nx.squeeze`
+* and rescale to 0..255, and then round thses floats to the nearest integer by casting into the type `:u8` as you need integers to produce an RGB image.
 
 ```elixir
 # PValente filters
@@ -908,7 +898,7 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 ```
 #Nx.Tensor<
   f32[x: 3][y: 3]
-  EXLA.Backend<host:0, 0.1794540766.3654418448.22074>
+  EXLA.Backend<host:0, 0.417430379.4136763408.174179>
   [
     [0.011343738064169884, 0.08381950855255127, 0.011343738064169884],
     [0.08381950855255127, 0.6193470358848572, 0.08381950855255127],
@@ -917,15 +907,15 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 >
 ```
 
-The code below in a custom `Kino.JS.Live` module. It captures the embedded webcam feed from your computer and produces a blurred version using the convolution module defined above.
+The code below in a custom `Kino.JS.Live` module. It displays the embedded webcam of your computer and produces a blurred copy of it by using the convolution module above.
 
-The JavaScript code captures frames from the webcam into an `OffscreenCanvas`. Every other frame is processed with a convolution filter, and the resulting frame is sent to the Elixir backend as a binary. Kino.JS.Live simplifies this process using a WebSocket and the `pushEvent` mechanism that accepts binary data.
+The Javascript code captures the frames from the webcam into an `offScreenCanvas`. One frame of the webcam out of two will be convoluted. This frame is sent to the Elixir backend as a binary, as `Kino.JS.Live` makes this easy for us via a websocket with `pushEvent`.
 
-The binary output of the convolution is converted to JPEG (:jpg) format, offering better compression than PNG (:png)—typically achieving a compression ratio of around 1:4.
+The binary resulting of the convolution is converted into `:jpg` format as you have more compression than `:png`, typically a ratio of 1/4.
 
-This compressed binary is then sent back to the JavaScript client via a WebSocket using the `broadcast_event` function on the server side and the `handleEvent` callback on the client side.
+This binary is then sent back to the Javascript via a websocket with `broadcast_event` server-side and the  primitive `handleEvent` client-side.
 
-To restore the original resolution of 256x256 (after reducing it to 128x128 for processing), the canvas.drawImage function is used, specifying both the source and target dimensions.
+To display the original size of 256x256 back (we reduced it to 128x128), use `canvas.drawImage` and specify the source dimensions and the target dimensions.
 
 ```elixir
 defmodule Streamer do
@@ -997,8 +987,7 @@ defmodule Streamer do
           }
           requestAnimationFrame(processFrame);
         };
-    
-        requestAnimationFrame(processFrame);
+      requestAnimationFrame(processFrame);
       } catch (err) {
         console.error("Webcam access error:", err);
       }
@@ -1024,6 +1013,267 @@ end
 Streamer.start()
 ```
 
-As a side note, the [webGPU API](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API) is available, meaning that the browser is able to call directly the GPU to run computations.
+As a side note, the new [webGPU API](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API) will be available, meaning the browser will be able to directly run these computations.
+
+This API will abstract from example the Metal-specific code for us.
+
+```elixir
+defmodule D do
+  use Kino.JS
+  use Kino.JS.Live
+
+  def html() do
+    """
+    <video id= "gpuinvid"></video>
+    <canvas id="gpucanvas" width="256" height="256"></canvas>
+    """
+  end
+
+  def start(), do: Kino.JS.Live.new(__MODULE__, html())
+
+  @impl true
+  def handle_connect(ctx), do: {:ok, ctx.assigns.html, ctx}
+
+  @impl true
+  def init(html, ctx), do: {:ok, assign(ctx, html: html)}
+
+  asset "main.js" do
+    """
+    export async function init(ctx,html) {
+      ctx.root.innerHTML = html;
+    
+      const width = 256;
+      const height = 256;
+
+      const adapter = await navigator.gpu.requestAdapter();
+      console.log(adapter.info)
+      const device = await adapter.requestDevice();
+      const gpuCanvas = document.getElementById("gpucanvas");
+      const gpuCanvasCtx = gpuCanvas.getContext("webgpu");
+      const offscreen = new OffscreenCanvas(width, height);
+      const offscreenCtx = offscreen.getContext('2d', { willReadFrequently: true });
+    
+      gpuCanvasCtx.configure({
+        device,
+        format: "bgra8unorm",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT
+      });
+
+
+      const inputTexture = device.createTexture({
+        size: [width, height],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      });
+
+    
+      const outputTexture = device.createTexture({
+        size: [width, height],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
+      });
+
+      const sampler = device.createSampler({
+        magFilter: 'linear',
+        minFilter: 'linear'
+      });
+    
+      const fragmentShaderCode = `
+        @group(0) @binding(0) var outputTexture: texture_2d<f32>;
+        @group(0) @binding(2) var outputSampler: sampler;
+      
+        @fragment
+        fn main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+          let size = vec2f(256.0, 256.0);
+          let uv = pos.xy / size;
+          return textureSample(outputTexture, outputSampler, uv);
+        }
+      `;
+
+      const computeShaderCode = `
+        @group(0) @binding(0) var inputTexture: texture_2d<f32>;
+        @group(0) @binding(1) var outputTexture: texture_storage_2d<rgba8unorm, write>;
+        @group(0) @binding(2) var ourSampler: sampler;  // Added sampler
+
+        /*
+        const kernelSize: i32 = 5;
+        const kernel: array<f32, 5> = array<f32, 5>(
+          0.1, 0.15, 0.5, 0.15, 0.1
+        );
+        */
+
+        const kernelSize: i32 = 9;
+        const kernel: array<f32, 9> = array<f32, 9>(
+          0.000229, 0.005977, 0.060598, 0.241732, 0.382928, 0.241732, 0.060598, 0.005977, 0.000229
+        );
+
+    
+      
+        @compute @workgroup_size(8, 8)
+        fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+          let coords = vec2<i32>(global_id.xy);
+          let texSize = textureDimensions(inputTexture);
+          
+          if (coords.x >= i32(texSize.x) || coords.y >= i32(texSize.y)) {
+            return;
+          }
+      
+          var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+          
+          // 2D Gaussian blur
+          for (var y: i32 = -kernelSize / 2; y <= kernelSize / 2; y = y + 1) {
+            for (var x: i32 = -kernelSize / 2; x <= kernelSize / 2; x = x + 1) {
+              let offsetCoords = coords + vec2<i32>(x, y);
+              let clampedCoords = clamp(
+                offsetCoords,
+                vec2<i32>(0),
+                vec2<i32>(i32(texSize.x - 1), i32(texSize.y - 1))
+              );
+              let weight = kernel[x + kernelSize / 2] * kernel[y + kernelSize / 2];
+              color += weight * textureLoad(inputTexture, clampedCoords, 0);
+            }
+          }
+    
+          textureStore(outputTexture, coords, color);
+        }
+      `;
+
+      const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+            texture: { sampleType: "float" }
+          },
+          {
+            binding: 1,
+            visibility: GPUShaderStage.COMPUTE,
+            storageTexture: { access: "write-only", format: "rgba8unorm" }
+          },
+          {
+            binding: 2,
+            visibility: GPUShaderStage.FRAGMENT,
+            sampler: { type: "filtering" }
+          }
+        ]
+      });
+
+      const bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          { binding: 0, resource: inputTexture.createView() },
+          { binding: 1, resource: outputTexture.createView() },
+          { binding: 2, resource: sampler }  // Add sampler
+        ]
+      });
+
+      
+    
+      
+      
+
+    const computePipeline = device.createComputePipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+      compute: { 
+        module: device.createShaderModule({ code: computeShaderCode }), 
+        entryPoint: "main" 
+      }
+    });
+
+    const renderPipeline = device.createRenderPipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+      vertex: {
+        module: device.createShaderModule({
+          code: `
+            @vertex
+            fn main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+              var pos = array<vec2f, 6>(
+                vec2f(-1.0, -1.0),
+                vec2f(1.0, -1.0),
+                vec2f(-1.0, 1.0),
+                vec2f(-1.0, 1.0),
+                vec2f(1.0, -1.0),
+                vec2f(1.0, 1.0)
+              );
+              return vec4f(pos[vertexIndex], 0.0, 1.0);
+            }
+          `
+        }),
+        entryPoint: 'main'
+      },
+      fragment: {
+        module: device.createShaderModule({ code: fragmentShaderCode }),
+        entryPoint: 'main',
+        targets: [{ format: 'bgra8unorm' }]
+      },
+      primitive: { topology: 'triangle-list' }
+    });
+
+
+    const video = document.getElementById("gpuinvid");
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width, height }
+    });
+    video.srcObject = stream;
+    video.play();
+
+    function processFrame() {
+      offscreenCtx.drawImage(video, 0, 0, width, height);
+      const imageData = offscreenCtx.getImageData(0, 0, width, height);
+      
+      device.queue.writeTexture(
+        { texture: inputTexture },
+        imageData.data,
+        { bytesPerRow: width * 4 },
+        { width, height }
+      );
+
+      const commandEncoder = device.createCommandEncoder();
+  
+      // Compute pass
+      const computePass = commandEncoder.beginComputePass();
+      computePass.setPipeline(computePipeline);
+      computePass.setBindGroup(0, bindGroup);
+      computePass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
+      computePass.end();
+  
+      // Render pass
+      const renderPassDescriptor = {
+        colorAttachments: [{
+          view: gpuCanvasCtx.getCurrentTexture().createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store'
+        }]
+      };
+
+      const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
+      renderPass.setPipeline(renderPipeline);
+      renderPass.setBindGroup(0, bindGroup);
+      renderPass.draw(6);
+      renderPass.end();
+  
+      device.queue.submit([commandEncoder.finish()]);
+      requestAnimationFrame(processFrame);
+    }
+
+    processFrame();
+
+    }
+    """
+  end
+end
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, D, <<70, 79, 82, 49, 0, 0, 13, ...>>, :ok}
+```
+
+```elixir
+D.start()
+```
 
 ## Convolution and music
