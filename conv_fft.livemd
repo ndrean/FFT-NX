@@ -124,7 +124,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EXLA.Backend<host:0, 0.989300885.2099904535.58802>
+  EXLA.Backend<host:0, 0.4162065718.3259367441.42326>
   [
     [1, 2],
     [3, 4]
@@ -148,7 +148,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EXLA.Backend<host:0, 0.989300885.2099904528.58520>
+   EXLA.Backend<host:0, 0.4162065718.3259367440.42066>
    [
      [0, 0],
      [1, 2],
@@ -158,7 +158,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EXLA.Backend<host:0, 0.989300885.2099904528.58522>
+   EXLA.Backend<host:0, 0.4162065718.3259367440.42068>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -166,7 +166,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EXLA.Backend<host:0, 0.989300885.2099904528.58524>
+   EXLA.Backend<host:0, 0.4162065718.3259367440.42070>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -702,9 +702,9 @@ params = Axon.Loop.run(loop, training_data, %{}, epochs: 20,  iterations: 50, co
 
 ```
 
-21:57:38.552 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
+07:12:06.552 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
 
-21:57:38.561 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
+07:12:06.563 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
 Epoch: 0, Batch: 0, loss: 0.0000000
 Epoch: 1, Batch: 0, loss: 4095.9575195
 Epoch: 2, Batch: 0, loss: 2760.0224609
@@ -844,7 +844,8 @@ defmodule Filter do
   end
 
   defn apply_kernel(image, kernel, opts \\ []) do
-    opts = keyword!(opts, strides: [1, 1])
+    # you work on half of the image, reducing from 256 to 128 with strides: [2,2]
+    opts = keyword!(opts, strides: [2, 2])
 
     # assumes channels are last in the image
     input_type = Nx.type(image)
@@ -889,7 +890,7 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 ```
 #Nx.Tensor<
   f32[x: 3][y: 3]
-  EXLA.Backend<host:0, 0.989300885.2099904528.62426>
+  EXLA.Backend<host:0, 0.4162065718.3259367440.235322>
   [
     [0.011343738064169884, 0.08381950855255127, 0.011343738064169884],
     [0.08381950855255127, 0.6193470358848572, 0.08381950855255127],
@@ -901,6 +902,12 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 The module below runs the embedded webcam of your computer and produces a blurred copy of it.
 
 It uses the convolution module above to blur each frame.
+
+The image is processed using `strides: [2,2]`, which means one pixel out of two. This reduces the computations.
+
+The binary is converted into `:jpg` format as you have more compression than `:png`, typically a ratio of 1/4.
+
+To display the original size of 256x256, use `canvas.drawImage` as specify the source dimensions and the target dimensions.
 
 ```elixir
 defmodule Streamer do
@@ -922,13 +929,19 @@ defmodule Streamer do
   @impl true
   def init(html, ctx), do: {:ok, assign(ctx, html: html)}
 
+  @impl true
+  def handle_event("not supported", _, ctx) do
+    IO.puts("Your browser does not support 'requestVideoFrameCallback'" )
+    {:noreply, ctx}
+  end
+  
   # it receives a video frame in binary form
   @impl true
   def handle_event("new frame", {:binary,_, buffer}, ctx) do
     image = 
       Nx.from_binary(buffer, :u8) 
+      # change shape from {1, 262144} to {256, 256, 4}
       |> Nx.reshape({256, 256, 4})
-    # image has shape {256, 256, 4}
 
     # apply a {5,5} gaussian kernel
     kernel = Filter.gaussian_blur_kernel(kernel_size: 5, sigma: 1)   
@@ -936,7 +949,7 @@ defmodule Streamer do
     output = 
       Filter.apply_kernel(image, kernel) 
       |> StbImage.from_nx()
-      |> StbImage.to_binary(:png)
+      |> StbImage.to_binary(:jpg)
     
     broadcast_event(ctx, "processed_frame", {:binary, %{}, output})
     {:noreply, ctx}
@@ -946,17 +959,20 @@ defmodule Streamer do
     """
     export async function init(ctx, html) {
       ctx.root.innerHTML = html;
+      if  (!"requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+        return ctx.pushEvent("not suported", {})
+      }
     
       const height = 256, width = 256,
         video = document.getElementById("invid"),
         renderCanvas = document.getElementById("canvas"),
         renderCanvasCtx = canvas.getContext("2d"),
         offscreen = new OffscreenCanvas(width, height),
-        offscreenCtx = offscreen.getContext("2d");
+        offscreenCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width, height, frameRate: 30 },
+          video: { width, height },
         });
         video.srcObject = stream;
         video.addEventListener("loadedmetadata", () => {
@@ -975,9 +991,8 @@ defmodule Streamer do
       }
 
       ctx.handleEvent("processed_frame", async ([{}, binary]) => {
-        await createImageBitmap(new Blob([binary], { type: "image/png" })).then(
-          (bitmap) => renderCanvasCtx.drawImage(bitmap, 0, 0)
-        );
+        const bitmap = await createImageBitmap(new Blob([binary], { type: "image/jpeg" }));
+        renderCanvasCtx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0,0, 256,256)
       });
     }
     """
@@ -989,7 +1004,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, Streamer, <<70, 79, 82, 49, 0, 0, 17, ...>>, :ok}
+{:module, Streamer, <<70, 79, 82, 49, 0, 0, 18, ...>>, :ok}
 ```
 
 ```elixir
