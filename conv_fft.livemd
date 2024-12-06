@@ -124,7 +124,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EXLA.Backend<host:0, 0.1070156969.3547463701.150064>
+  EXLA.Backend<host:0, 0.1005765884.2792751123.45245>
   [
     [1, 2],
     [3, 4]
@@ -148,7 +148,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EXLA.Backend<host:0, 0.1070156969.3547463696.149785>
+   EXLA.Backend<host:0, 0.1005765884.2792751120.44983>
    [
      [0, 0],
      [1, 2],
@@ -158,7 +158,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EXLA.Backend<host:0, 0.1070156969.3547463696.149787>
+   EXLA.Backend<host:0, 0.1005765884.2792751120.44985>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -166,7 +166,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EXLA.Backend<host:0, 0.1070156969.3547463696.149789>
+   EXLA.Backend<host:0, 0.1005765884.2792751120.44987>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -702,9 +702,9 @@ params = Axon.Loop.run(loop, training_data, %{}, epochs: 20,  iterations: 50, co
 
 ```
 
-09:16:39.170 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
+14:44:36.739 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
 
-09:16:39.179 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
+14:44:36.748 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
 Epoch: 0, Batch: 0, loss: 0.0000000
 Epoch: 1, Batch: 0, loss: 4095.9575195
 Epoch: 2, Batch: 0, loss: 2760.0224609
@@ -898,7 +898,7 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 ```
 #Nx.Tensor<
   f32[x: 3][y: 3]
-  EXLA.Backend<host:0, 0.1070156969.3547463696.153691>
+  EXLA.Backend<host:0, 0.1005765884.2792751120.48889>
   [
     [0.011343738064169884, 0.08381950855255127, 0.011343738064169884],
     [0.08381950855255127, 0.6193470358848572, 0.08381950855255127],
@@ -937,12 +937,6 @@ defmodule Streamer do
   @impl true
   def init(html, ctx), do: {:ok, assign(ctx, html: html)}
 
-  @impl true
-  def handle_event("not supported", _, ctx) do
-    IO.puts("Your browser does not support 'requestVideoFrameCallback'" )
-    {:noreply, ctx}
-  end
-  
   # it receives a video frame in binary form
   @impl true
   def handle_event("new frame", {:binary,_, buffer}, ctx) do
@@ -967,9 +961,6 @@ defmodule Streamer do
     """
     export async function init(ctx, html) {
       ctx.root.innerHTML = html;
-      if  (!"requestVideoFrameCallback" in HTMLVideoElement.prototype) {
-        return ctx.pushEvent("not suported", {})
-      }
     
       const height = 256, width = 256,
         video = document.getElementById("invid"),
@@ -984,12 +975,9 @@ defmodule Streamer do
         });
         video.srcObject = stream;
         let frameCounter = 0;
-        video.addEventListener("loadedmetadata", () => {
-          video.play();
-          video.requestVideoFrameCallback(processFrame);
-        });
+        video.play();
     
-        const processFrame = async (now, metadata) => {
+        const processFrame = async (_now, _metadata) => {
           frameCounter++;
           // process only 1 frame out of 2
           if (frameCounter % 2 == 0) {
@@ -997,8 +985,9 @@ defmodule Streamer do
             const {data}  = offscreenCtx.getImageData(0, 0, width, height);
             ctx.pushEvent("new frame", [{}, data.buffer]);
           }
-          video.requestVideoFrameCallback(processFrame);
+          requestAnimationFrame(processFrame);
         };
+      requestAnimationFrame(processFrame);
       } catch (err) {
         console.error("Webcam access error:", err);
       }
@@ -1017,17 +1006,11 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, Streamer, <<70, 79, 82, 49, 0, 0, 18, ...>>, :ok}
+{:module, Streamer, <<70, 79, 82, 49, 0, 0, 17, ...>>, :ok}
 ```
 
 ```elixir
-#Streamer.start()
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-nil
+Streamer.start()
 ```
 
 As a side note, the new [webGPU API](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API) will be available, meaning the browser will be able to directly run these computations.
