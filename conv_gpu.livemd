@@ -1,6 +1,6 @@
 <!-- livebook:{"persist_outputs":true} -->
 
-# Convolution with Nx
+# Convolution with WebGPU
 
 ```elixir
 Mix.install(
@@ -277,4 +277,3 @@ end
 D.start()
 ```
 
-## Convolution and music
