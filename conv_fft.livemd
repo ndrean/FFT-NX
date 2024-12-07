@@ -113,20 +113,15 @@ Some examples on how to use the function `Nx.pad` with a 1D tensor to add number
 t = Nx.tensor([1,2,3])
 one_zero_left = Nx.pad(t, 0, [{1,0,0}])
 two_5_right = Nx.pad(t, 5, [{0,2,0}])
-#spaced_with_three_five_from_left = Nx.pad(t, 5, [{1, 0, 3}])
 
-#[t, one_zero_left, two_5_right, spaced_with_three_five_from_left] 
-#|> Enum.map(&Nx.to_list/1)
+[t, one_zero_left, two_5_right] 
+|> Enum.map(&Nx.to_list/1)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-#Nx.Tensor<
-  s32[5]
-  EMLX.Backend<gpu, 0.4119405299.136183815.223768>
-  [1, 2, 3, 5, 5]
->
+[[1, 2, 3], [0, 1, 2, 3], [1, 2, 3, 5, 5]]
 ```
 
 With a 2D-tensor, you need to add an extra dimension. For example, take:
@@ -140,7 +135,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EMLX.Backend<gpu, 0.4119405299.136183816.231659>
+  EMLX.Backend<gpu, 0.1937529058.1490157570.226889>
   [
     [1, 2],
     [3, 4]
@@ -164,7 +159,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EMLX.Backend<gpu, 0.4119405299.136183816.231667>
+   EMLX.Backend<gpu, 0.1937529058.1490157570.226922>
    [
      [0, 0],
      [1, 2],
@@ -174,7 +169,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EMLX.Backend<gpu, 0.4119405299.136183816.231670>
+   EMLX.Backend<gpu, 0.1937529058.1490157570.226925>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -182,7 +177,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EMLX.Backend<gpu, 0.4119405299.136183816.231673>
+   EMLX.Backend<gpu, 0.1937529058.1490157570.226928>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -420,9 +415,9 @@ defmodule NxPoly do
   import Nx.Defn
   
   defn tprod(t1, t2) do
-    t1 = Nx.stack(t1) 
+    t1 = Nx.stack(t1) |> Nx.as_type(:f32)
     t1 = Nx.reshape(t1, {1,1, Nx.size(t1)})
-    t2 = Nx.stack(t2)
+    t2 = Nx.stack(t2) |> Nx.as_type(:f32)
     t2 = Nx.reshape(t2, {1,1, Nx.size(t2)})
     
     Nx.conv(t1, Nx.reverse(t2), padding: [{2,2}])
@@ -438,7 +433,7 @@ end
 ```
 
 ```elixir
-NxPoly.tprod([1.0,1.0,1.0], [2.0,0.0,1.0])
+NxPoly.tprod([1,1,1], [2,0,1])
 |> Nx.as_type(:u8)
 |> Nx.flatten()
 |> Nx.to_list()
@@ -574,32 +569,26 @@ The algorithm uses a parameter `eps` to control the step size (rate of change) d
 
 ```elixir
 five = Nx.reshape(five, {1, 1, 28, 28})
-
-kernel = Nx.tensor([-1,0,1]) |> Nx.reshape({1,1,1,3})
-
 kernel_init = Nx.tensor([0.0, 0.0, 0.0]) |> Nx.reshape({1,1,1,3})
 
 defmodule GradDesc do
   import Nx.Defn
-
-  @eps 1.0e-4
-  @itermax 10
 
   defn curr_loss(input, kernel, out) do
     curr_out = Nx.conv(input |> Nx.as_type(:f32), kernel, padding: :same)
     Nx.mean((curr_out - out)**2)
   end
 
-  defn update(kernel, input, out) do
+  defn update(kernel, input, out, opts) do
     der = grad(kernel, fn t -> curr_loss(input, t,  out) end)
-    kernel - der * @eps
+    kernel - der * opts[:eps]
   end
 
-  defn loop(kernel, input, output) do
+  defn loop(input, kernel, output, opts) do
     {k,_, _,_} = 
       # for simplicity, we only set the number of steps to run.
-      while {k = kernel, i=0, inp=input, out=output}, i <= @itermax  do
-        {update(k, inp, out), i+1, inp, out}
+      while {k = kernel, i=0, inp=input, out=output}, i <= opts[:itermax]  do
+        {update(k, inp, out, opts), i+1, inp, out}
       end
     {k, curr_loss(input, k,  output)}
   end
@@ -609,13 +598,13 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, GradDesc, <<70, 79, 82, 49, 0, 0, 18, ...>>, true}
+{:module, GradDesc, <<70, 79, 82, 49, 0, 0, 19, ...>>, true}
 ```
 
 ```elixir
 IO.puts("Initial loss: #{round(Nx.to_number(GradDesc.curr_loss(five, kernel_init, vertical_detection)))}")
 
-{k, loss} = GradDesc.loop(kernel_init, five, vertical_detection)
+{k, loss} = GradDesc.loop(five, kernel_init, vertical_detection, itermax: 10, eps: 1.0e-4)
 
 IO.puts("Loss after iterations: #{Nx.to_number(loss)}")
 ```
@@ -642,9 +631,7 @@ Nx.to_list(k)|> List.flatten()
 <!-- livebook:{"output":true} -->
 
 ```
-error: undefined variable "k"
-└─ conv_fft.livemd#cell:cd67tstos3q4npiu:1
-
+[-0.9989683032035828, -3.817594006250147e-6, 0.998961329460144]
 ```
 
 ## Using an Axon model with a convolution layer to predict vertical edges
@@ -707,42 +694,39 @@ model =
 We train the model with the dataset. Note that it is important to use `compiler: EXLA` for the computation speed.
 
 ```elixir
-#optimizer = Polaris.Optimizers.adam(learning_rate: 1.0e-2)
-#optimizer = Polaris.Optimizers.adagrad(learning_rate: 1.0e-2)
-optimizer = Polaris.Optimizers.adabelief(learning_rate: 1.0e-2)
+optimizer = Polaris.Optimizers.adam(learning_rate: 1.0e-2)
+#optimizer = Polaris.Optimizers.adabelief(learning_rate: 1.0e-2)
 
-loop = Axon.Loop.trainer(model, :mean_squared_error, optimizer)
-
-params = Axon.Loop.run(loop, training_data, %{}, epochs: 20,  iterations: 50, compiler: EMLX)
+params = 
+  Axon.Loop.trainer(model, :mean_squared_error, optimizer)
+  |> Axon.Loop.run(training_data, Axon.ModelState.empty(), epochs: 20,  compiler: EMLX)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
 
-22:46:05.625 [debug] Forwarding options: [compiler: EMLX] to JIT compiler
-
-22:46:05.625 [warning] passing parameter map to initialization is deprecated, use %Axon.ModelState{} instead
+00:06:22.750 [debug] Forwarding options: [compiler: EMLX] to JIT compiler
 Epoch: 0, Batch: 0, loss: 0.0000000
 Epoch: 1, Batch: 0, loss: 4096.1328125
 Epoch: 2, Batch: 0, loss: 2760.1577148
 Epoch: 3, Batch: 0, loss: 2029.4346924
 Epoch: 4, Batch: 0, loss: 1624.6121826
-Epoch: 5, Batch: 0, loss: 1374.7452393
-Epoch: 6, Batch: 0, loss: 1202.8281250
-Epoch: 7, Batch: 0, loss: 1075.4890137
-Epoch: 8, Batch: 0, loss: 976.2922363
-Epoch: 9, Batch: 0, loss: 895.9650269
-Epoch: 10, Batch: 0, loss: 828.9746094
-Epoch: 11, Batch: 0, loss: 771.8314819
-Epoch: 12, Batch: 0, loss: 722.2231445
-Epoch: 13, Batch: 0, loss: 678.5553589
-Epoch: 14, Batch: 0, loss: 639.6928101
-Epoch: 15, Batch: 0, loss: 604.8017578
-Epoch: 16, Batch: 0, loss: 573.2545776
-Epoch: 17, Batch: 0, loss: 544.5665283
-Epoch: 18, Batch: 0, loss: 518.3548584
-Epoch: 19, Batch: 0, loss: 494.3112793
+Epoch: 5, Batch: 0, loss: 1374.7448730
+Epoch: 6, Batch: 0, loss: 1202.8275146
+Epoch: 7, Batch: 0, loss: 1075.4884033
+Epoch: 8, Batch: 0, loss: 976.2915649
+Epoch: 9, Batch: 0, loss: 895.9644165
+Epoch: 10, Batch: 0, loss: 828.9739990
+Epoch: 11, Batch: 0, loss: 771.8309326
+Epoch: 12, Batch: 0, loss: 722.2226563
+Epoch: 13, Batch: 0, loss: 678.5550537
+Epoch: 14, Batch: 0, loss: 639.6925049
+Epoch: 15, Batch: 0, loss: 604.8014526
+Epoch: 16, Batch: 0, loss: 573.2542725
+Epoch: 17, Batch: 0, loss: 544.5662842
+Epoch: 18, Batch: 0, loss: 518.3546143
+Epoch: 19, Batch: 0, loss: 494.3110657
 ```
 
 <!-- livebook:{"output":true} -->
@@ -925,7 +909,7 @@ Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
 ```
 #Nx.Tensor<
   f32[x: 3][y: 3]
-  EMLX.Backend<gpu, 0.4119405299.136445953.19777>
+  EMLX.Backend<gpu, 0.1937529058.1490157571.225489>
   [
     [0.011343738064169884, 0.08381950855255127, 0.011343738064169884],
     [0.08381950855255127, 0.6193470358848572, 0.08381950855255127],
@@ -1039,12 +1023,6 @@ end
 
 ```elixir
 Streamer.start()
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-nil
 ```
 
 As a side note, the [webGPU API](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API) is available, meaning that the browser is able to call directly the GPU to run computations.
