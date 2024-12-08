@@ -100,7 +100,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EMLX.Backend<gpu, 0.1544819942.3192520707.151764>
+  EXLA.Backend<host:0, 0.42176763.841089045.65108>
   [
     [1, 2],
     [3, 4]
@@ -124,7 +124,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EMLX.Backend<gpu, 0.1544819942.3192520707.151778>
+   EXLA.Backend<host:0, 0.42176763.841089040.64835>
    [
      [0, 0],
      [1, 2],
@@ -134,7 +134,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EMLX.Backend<gpu, 0.1544819942.3192520707.151781>
+   EXLA.Backend<host:0, 0.42176763.841089040.64837>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -142,7 +142,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EMLX.Backend<gpu, 0.1544819942.3192520707.151784>
+   EXLA.Backend<host:0, 0.42176763.841089040.64839>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -320,34 +320,34 @@ optimizer = Polaris.Optimizers.adam(learning_rate: 1.0e-2)
 
 params = 
   Axon.Loop.trainer(model, :mean_squared_error, optimizer)
-  |> Axon.Loop.run(training_data, Axon.ModelState.empty(), epochs: 20,  compiler: EMLX)
+  |> Axon.Loop.run(training_data, Axon.ModelState.empty(), epochs: 20,  compiler: EXLA)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
 
-09:41:31.761 [debug] Forwarding options: [compiler: EMLX] to JIT compiler
+16:41:17.507 [debug] Forwarding options: [compiler: EXLA] to JIT compiler
 Epoch: 0, Batch: 0, loss: 0.0000000
-Epoch: 1, Batch: 0, loss: 4096.1328125
-Epoch: 2, Batch: 0, loss: 2760.1577148
-Epoch: 3, Batch: 0, loss: 2029.4346924
-Epoch: 4, Batch: 0, loss: 1624.6121826
-Epoch: 5, Batch: 0, loss: 1374.7448730
-Epoch: 6, Batch: 0, loss: 1202.8275146
-Epoch: 7, Batch: 0, loss: 1075.4884033
-Epoch: 8, Batch: 0, loss: 976.2915649
-Epoch: 9, Batch: 0, loss: 895.9644165
-Epoch: 10, Batch: 0, loss: 828.9739990
-Epoch: 11, Batch: 0, loss: 771.8309326
-Epoch: 12, Batch: 0, loss: 722.2226563
-Epoch: 13, Batch: 0, loss: 678.5550537
-Epoch: 14, Batch: 0, loss: 639.6925049
-Epoch: 15, Batch: 0, loss: 604.8014526
-Epoch: 16, Batch: 0, loss: 573.2542725
-Epoch: 17, Batch: 0, loss: 544.5662842
-Epoch: 18, Batch: 0, loss: 518.3546143
-Epoch: 19, Batch: 0, loss: 494.3110657
+Epoch: 1, Batch: 0, loss: 4095.9575195
+Epoch: 2, Batch: 0, loss: 2760.0224609
+Epoch: 3, Batch: 0, loss: 2029.3372803
+Epoch: 4, Batch: 0, loss: 1624.5377197
+Epoch: 5, Batch: 0, loss: 1374.6849365
+Epoch: 6, Batch: 0, loss: 1202.7775879
+Epoch: 7, Batch: 0, loss: 1075.4449463
+Epoch: 8, Batch: 0, loss: 976.2529907
+Epoch: 9, Batch: 0, loss: 895.9296265
+Epoch: 10, Batch: 0, loss: 828.9421387
+Epoch: 11, Batch: 0, loss: 771.8013916
+Epoch: 12, Batch: 0, loss: 722.1952515
+Epoch: 13, Batch: 0, loss: 678.5291138
+Epoch: 14, Batch: 0, loss: 639.6677246
+Epoch: 15, Batch: 0, loss: 604.7778931
+Epoch: 16, Batch: 0, loss: 573.2318115
+Epoch: 17, Batch: 0, loss: 544.5447998
+Epoch: 18, Batch: 0, loss: 518.3340454
+Epoch: 19, Batch: 0, loss: 494.2913818
 ```
 
 <!-- livebook:{"output":true} -->
@@ -505,13 +505,13 @@ Filter.gaussian_blur_kernel(sigma: 0.5)
 ```
 #Nx.Tensor<
   f32[x: 5][y: 5]
-  EMLX.Backend<gpu, 0.1544819942.3192520705.168237>
+  EXLA.Backend<host:0, 0.42176763.841089040.68537>
   [
-    [6.962477527849842e-8, 2.8088637918699533e-5, 2.0754853903781623e-4, 2.8088637918699533e-5, 6.962477527849842e-8],
-    [2.8088637918699533e-5, 0.011331766843795776, 0.08373105525970459, 0.011331766843795776, 2.8088637918699533e-5],
-    [2.0754853903781623e-4, 0.08373105525970459, 0.618693470954895, 0.08373105525970459, 2.0754853903781623e-4],
-    [2.8088637918699533e-5, 0.011331766843795776, 0.08373105525970459, 0.011331766843795776, 2.8088637918699533e-5],
-    [6.962477527849842e-8, 2.8088637918699533e-5, 2.0754853903781623e-4, 2.8088637918699533e-5, 6.962477527849842e-8]
+    [6.962478948935313e-8, 2.8088648832635954e-5, 2.075485826935619e-4, 2.8088648832635954e-5, 6.962478948935313e-8],
+    [2.8088648832635954e-5, 0.0113317696377635, 0.08373107761144638, 0.0113317696377635, 2.8088648832635954e-5],
+    [2.075485826935619e-4, 0.08373107761144638, 0.6186935901641846, 0.08373107761144638, 2.075485826935619e-4],
+    [2.8088648832635954e-5, 0.0113317696377635, 0.08373107761144638, 0.0113317696377635, 2.8088648832635954e-5],
+    [6.962478948935313e-8, 2.8088648832635954e-5, 2.075485826935619e-4, 2.8088648832635954e-5, 6.962478948935313e-8]
   ]
 >
 ```
@@ -620,10 +620,4 @@ end
 
 ```elixir
 Streamer.start()
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-nil
 ```
