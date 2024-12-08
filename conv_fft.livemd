@@ -135,7 +135,7 @@ m = Nx.tensor([[1,2],[3,4]])
 ```
 #Nx.Tensor<
   s32[2][2]
-  EMLX.Backend<gpu, 0.1937529058.1490157570.226889>
+  EMLX.Backend<gpu, 0.1544819942.3192520707.151764>
   [
     [1, 2],
     [3, 4]
@@ -159,7 +159,7 @@ We will successfully:
 ```
 {#Nx.Tensor<
    s32[4][2]
-   EMLX.Backend<gpu, 0.1937529058.1490157570.226922>
+   EMLX.Backend<gpu, 0.1544819942.3192520707.151778>
    [
      [0, 0],
      [1, 2],
@@ -169,7 +169,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[2][4]
-   EMLX.Backend<gpu, 0.1937529058.1490157570.226925>
+   EMLX.Backend<gpu, 0.1544819942.3192520707.151781>
    [
      [0, 1, 2, 0],
      [0, 3, 4, 0]
@@ -177,7 +177,7 @@ We will successfully:
  >,
  #Nx.Tensor<
    s32[4][4]
-   EMLX.Backend<gpu, 0.1937529058.1490157570.226928>
+   EMLX.Backend<gpu, 0.1544819942.3192520707.151784>
    [
      [0, 0, 0, 0],
      [0, 1, 2, 0],
@@ -706,7 +706,7 @@ params =
 
 ```
 
-00:06:22.750 [debug] Forwarding options: [compiler: EMLX] to JIT compiler
+09:41:31.761 [debug] Forwarding options: [compiler: EMLX] to JIT compiler
 Epoch: 0, Batch: 0, loss: 0.0000000
 Epoch: 1, Batch: 0, loss: 4096.1328125
 Epoch: 2, Batch: 0, loss: 2760.1577148
@@ -787,30 +787,20 @@ Most of the tensor manipulations used below are explained in this post:
 
 #### The gaussian kernel
 
-Let’s walk through how the blur kernel is constructed:
-
-Inputs: Start with a desired kernel_size and a standard deviation sigma.
-Generate Vectors: Create two vectors x and y of integers, centered at 0, with lengths equal to the next odd number greater than or equal to kernel_size.
-For example, if kernel_size is 4, the vectors will be [-2, -1, 0, 1, 2].
-If kernel_size is 5, the vectors remain the same (to ensure 0 is in the center).
-Calculate Gaussian Coefficients: For each pair of values $(𝑥_i, y_j)$ from the vectors, compute the Gaussian coefficient:
-
 Let's see how the "blur" kernel is built.
 
-* given a desired `kernel_size` and the mean `sigma`,
-* it produces two vectors of integers `x` and `y` centered at 0 and of length the next odd number. For example, if the size is 4, it produces two vectors `[-2, -1, 0, 1, 2]`. If the size is 5, it produces the same two vectors (you want 0 to be "in the middle")
-* you then use all the couples $(x_i,y_j)$ from these two vectors to compute the gaussian coefficients. For example with a size of 4, you will get 5x5=25 gaussian coefficients.
+* produce two vectors of integers `x` and `y`  as `[-2, -1, 0, 1, 2]`.
+* compute the gaussian coefficients for the 5x5=25  couples $(x_i,y_j)$ 
   $$
   \dfrac1{2\pi\sigma^2}\cdot \exp^{\big(\dfrac{-x_i^2+y_j^2}{2\sigma}\big)}
   $$
-* For a kernel size of 4, this results in 5x5=25 Gaussian coefficients.
 * Normalize: Scale the coefficients so their sum equals 1. This ensures that the resulting kernel preserves the overall brightness of the image.
 
 #### The convolution
 
 We then perform a convolution between the input (a tensor representing an image) and the given kernel.
 
-The input is expected to have the shape `{height, width, channel}` and a data type of `:u8`, representing integers ranging from 0 to 255. For example, a 256x256 color PNG image would have the shape `{256, 256, 4}`, where the 4 channels correspond to RGBA values.
+The input image tensor is expected to have the shape `{height, width, channel}` with a data type of `:u8`, representing integers ranging from 0 to 255. For example, a 256x256 color PNG image would have the shape `{256, 256, 4}`, where the 4 channels correspond to RGBA values.
 
 To prepare the image for computation, the tensor is converted to floats in the range [0, 1] by dividing each element by 255.
 
@@ -827,38 +817,22 @@ Once the convolution is complete:
 * The values are rounded to the nearest integer and cast back to the type `:u8`, as integers are required to produce a valid RGB image.
 
 ```elixir
-# PValente filters
-
 defmodule Filter do
   import Nx.Defn
   import Nx.Constants, only: [pi: 0]
 
-  deftransform get_odd_size(opts) do
-    size = opts[:kernel_size]
-    size + 1 - rem(size, 2)
-  end
-
   defn gaussian_blur_kernel(opts \\ []) do
-    opts = keyword!(opts, [:kernel_size, :sigma])
     sigma = opts[:sigma]
-    size = get_odd_size(opts)
-
-    half_size = div(size, 2)
-
-    range = {size} |> Nx.iota() |> Nx.subtract(half_size)
+    range = Nx.iota({5}) |> Nx.subtract(2)
 
     x = Nx.vectorize(range, :x)
     y = Nx.vectorize(range, :y)
 
-    # Apply Gaussian function to each element
+    # Apply Gaussian function to each of the 5x5 elements
     kernel =
       Nx.exp(-(x * x + y * y) / (2 * sigma * sigma))
-
     kernel = kernel / (2 * pi() * sigma * sigma)
-
     kernel = Nx.devectorize(kernel)
-
-    # Normalize the kernel so the sum is 1
     kernel / Nx.sum(kernel)
   end
 
@@ -866,7 +840,6 @@ defmodule Filter do
     # you work on half of the image, reducing from 256 to 128 with strides: [2,2]
     opts = keyword!(opts, strides: [2, 2])
 
-    # assumes channels are last in the image
     input_type = Nx.type(image)
     # use floats in [0..1] instead of u8 in [0..255]
     image = image / 255
@@ -874,12 +847,14 @@ defmodule Filter do
     {m, n} = Nx.shape(kernel)
     kernel = Nx.reshape(kernel, {1,1,m,n})
 
+    # the image has the shape {:h,:w, :c}
+    # insert a new dimension ( Nx.new_axis does not need the current shape)
+    # and swap {1, h, w, c} to {c, 1, h, w} for the calculations to be batched on each colour
+    # then cast into :u8
     image
-    # insert a new dimension: on the contrary to reshape, you don't need to use the current shape
     |> Nx.new_axis(0)
     |> Nx.conv(kernel,
       padding: :same,
-      # swap {1, h, w, c} to {c, 1, h, w} for the calculations to be batched on each colour
       input_permutation: [3, 0, 1, 2],
       output_permutation: [3, 0, 1, 2],
       strides: opts[:strides]
@@ -895,25 +870,27 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, Filter, <<70, 79, 82, 49, 0, 0, 23, ...>>, true}
+{:module, Filter, <<70, 79, 82, 49, 0, 0, 20, ...>>, true}
 ```
 
 We can take a look into a kernel:
 
 ```elixir
-Filter.gaussian_blur_kernel(kernel_size: 3, sigma: 0.5)
+Filter.gaussian_blur_kernel(sigma: 0.5)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
 #Nx.Tensor<
-  f32[x: 3][y: 3]
-  EMLX.Backend<gpu, 0.1937529058.1490157571.225489>
+  f32[x: 5][y: 5]
+  EMLX.Backend<gpu, 0.1544819942.3192520705.168237>
   [
-    [0.011343738064169884, 0.08381950855255127, 0.011343738064169884],
-    [0.08381950855255127, 0.6193470358848572, 0.08381950855255127],
-    [0.011343738064169884, 0.08381950855255127, 0.011343738064169884]
+    [6.962477527849842e-8, 2.8088637918699533e-5, 2.0754853903781623e-4, 2.8088637918699533e-5, 6.962477527849842e-8],
+    [2.8088637918699533e-5, 0.011331766843795776, 0.08373105525970459, 0.011331766843795776, 2.8088637918699533e-5],
+    [2.0754853903781623e-4, 0.08373105525970459, 0.618693470954895, 0.08373105525970459, 2.0754853903781623e-4],
+    [2.8088637918699533e-5, 0.011331766843795776, 0.08373105525970459, 0.011331766843795776, 2.8088637918699533e-5],
+    [6.962477527849842e-8, 2.8088637918699533e-5, 2.0754853903781623e-4, 2.8088637918699533e-5, 6.962477527849842e-8]
   ]
 >
 ```
@@ -957,8 +934,7 @@ defmodule Streamer do
       |> Nx.reshape({256, 256, 4})
 
     # apply a {5,5} gaussian kernel
-    kernel = Filter.gaussian_blur_kernel(kernel_size: 5, sigma: 1)   
-    
+    kernel = Filter.gaussian_blur_kernel(sigma: 1)   
     output = 
       Filter.apply_kernel(image, kernel) 
       |> StbImage.from_nx()
@@ -1023,6 +999,12 @@ end
 
 ```elixir
 Streamer.start()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+nil
 ```
 
 As a side note, the [webGPU API](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API) is available, meaning that the browser is able to call directly the GPU to run computations.
